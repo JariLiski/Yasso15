@@ -10,26 +10,32 @@ from dateutil.relativedelta import relativedelta
 
 from yassodata import YassoModel
 from modelcall import ModelRunner
-import y6c
 
 class YassoController(Controller):
     """
-    Controller and the default View for the Yasso07 program
+    Controller and the default View for the Yasso07 program3
     """
 
-    view = View(VGroup(Item(name='initial_mode', style='custom'),
+                            #enabled_when='litter_mode=="constant"',
+                            #enabled_when='litter_mode=="timeseries"',
+    view = View(VGroup(HGroup(Item(name='initial_mode', style='custom'),
+                              spring),
                        Item('initial_litter',
                             enabled_when='initial_mode=="non zero"'),
                        label='Initial condition'
                       ),
-                VGroup(Item('litter_mode', style='custom'),
+                VGroup(HGroup(Item('litter_mode', style='custom'), spring),
                        Item('constant_litter',
-                            enabled_when='litter_mode=="constant"'),
+                            visible_when='litter_mode=="constant"',
+                            show_label=False
+                            ),
                        Item('timeseries_litter',
-                            enabled_when='litter_mode=="timeseries"'),
+                            visible_when='litter_mode=="timeseries"',
+                            show_label=False
+                            ),
                        label='Litter input'
                       ),
-                VGroup(Item('climate_mode', style='custom'),
+                VGroup(HGroup(Item('climate_mode', style='custom'), spring),
                        Group(Item('object.constant_climate.annual_rainfall'),
                              Item('object.constant_climate.mean_temperature'),
                              Item('object.constant_climate.variation_amplitude'),
@@ -42,11 +48,13 @@ class YassoController(Controller):
                             enabled_when='climate_mode=="yearly"'),
                        label='Climate'
                       ),
-                VGroup(Item('sample_size'),
-                       Item('duration_unit', style='custom'),
-                       Item('timestep'),
-                       Item('simulation_length'),
-                       label='Model run'
+                VGroup(HGroup(Item('sample_size'),spring),
+                       HGroup(Item('duration_unit', style='custom'),spring),
+                       HGroup(Item('timestep'), spring),
+                       HGroup(Item('simulation_length'), spring),
+                       HGroup(Item('modelrun_event', show_label=False),
+                                   spring),
+                       label='Model run',
                       ),
                 title     = 'Yasso 07',
                 id        = 'simosol.yasso07',
@@ -55,23 +63,49 @@ class YassoController(Controller):
                 buttons   = NoButtons
                 )
 
-    def __init__(self):
-        self.predictor = None
-        self.timemap = defaultdict(list)
-        self.c_stock = numpy.empty(shape=(0,8), dtype=float)
-        self.c_change = numpy.empty(shape=(0,8), dtype=float)
-        self.co2_yield = numpy.empty(shape=(0,3), dtype=float)
+    predictor = None
+    timemap = defaultdict(list)
 
-    def __add_c_stock_result(self, sample, timestep, woody, nonwoody):
+    def controller_modelrun_event_fired(self):
+        print 'running model'
+        timesteps = self.__calculate_timesteps()
+        for j in range(model.sample_size):
+            self.ml_run = True
+            self.draw = True
+            for k in range(timesteps):
+                climate = self.__construct_climate(k)
+                self.ts_initial = 0.0
+                self.ts_infall = 0.0
+                self.__create_input(k)
+                for sizeclass in self.initial:
+                    self.__predict(sizeclass, self.initial[sizeclass],
+                                   self.litter[sizeclass], climate)
+                if not self.ml_run:
+                    # first run is the maximum likelihood run, on the next
+                    # we draw the random sample, and on the next runs use it
+                    self.draw = False
+                self.ml_run = False
+                self.__calculate_c_change(j, k)
+                self.__calculate_co2_yield(j, k)
+
+    def __add_c_stock_result(self, sample, timestep, sc, endstate):
         """
         Adds model result to the C stock
 
-        res -- model results augmented with timestep and iteration data
+        res -- model results augmented with timestep, iteration and
+               sizeclass data
         """
         cs = model.c_stock
-        res = numpy.concatenate(([float(sample), float(timestep), woody],
-                                 nonwoody))
-        res.shape = (1, 8)
+        # if sizeclass is non-zero, all the components are added together
+        # to get the mass of wood
+        if sc > 0:
+            totalom, woody = sum(endstate)
+        else:
+            totalom = sum(endstate)
+            woody = 0.0
+        res = numpy.concatenate(([float(sample), float(timestep), totalom,
+                                  woody], endstate))
+        res.shape = (1, 9)
         # find out whether there are already results for this timestep and
         # iteration
         criterium = (cs[:,0]==res[0,0]) & (cs[:,1]==res[0,1])
@@ -89,10 +123,17 @@ class YassoController(Controller):
         s -- sample ordinal
         ts -- timestep ordinal
         """
-        cc = self.c_change
-        stepinf = numpy.array([[s, ts, 0., 0., 0., 0., 0., 0.]], dtype=float)
-        cc = numpy.append(cc, stepinf, axis=0)
-        cc[-1, 2:] = cs[s, ts, :] - self.c_ts_initial
+        cc = model.c_change
+        cs = model.c_stock
+        criterium = (cs[:,0]==s) & (cs[:,1]==ts)
+        nowtarget = numpy.where(criterium)[0]
+        criterium = (cs[:,0]==s) & (cs[:,1]==ts-1)
+        prevtarget = numpy.where(criterium)[0]
+        if len(target) > 0:
+            stepinf = numpy.array([[s, ts, 0., 0., 0., 0., 0., 0., 0.]],
+                                  dtype=numpy.float32)
+            cc = numpy.append(cc, stepinf, axis=0)
+            cc[-1, 2:] = cs[nowtarget, 2:] - cs[prevtarget, 2:]
 
     def __calculate_co2_yield(self, s, ts):
         """
@@ -101,14 +142,13 @@ class YassoController(Controller):
         s -- sample ordinal
         ts -- timestep ordinal
         """
-        cs = self.c_stock
-        cy = self.co2_yield
-        stepinf = numpy.array([[s, ts, 0.]], dtype=float)
+        cs = model.c_stock
+        cy = model.co2_yield
+        stepinf = numpy.array([[s, ts, 0.]], dtype=numpy.float32)
         cy = numpy.append(cc, stepinf, axis=0)
-        ini = sum(self.c_ts_initial)
-        infall = sum(self.c_ts_infall)
-        atend = sum(cs[s, ts, :])
-        cc[-1, 2] = ini + infall - atend
+        # total organic matter at index 3
+        atend = cs[s, ts, 3]
+        cc[-1, 2] = self.ts_initial + self.ts_infall - atend
 
     def __calculate_timesteps(self):
         return int(math.ceil(model.simulation_length / model.timestep))
@@ -265,7 +305,7 @@ class YassoController(Controller):
             e_std = e_std / m
             n_std = n_std / m
             h_std = h_std / m
-            if model.duration_unit == 'month' and
+            if model.duration_unit == 'month' and \
                self.litter_input_resolution == 'year':
                    div = model.timestep/12.
             else:
@@ -286,6 +326,7 @@ class YassoController(Controller):
             if sc not in self.initial:
                 self.initial[sc] = [0., 0., 0., 0., 0., 0.,
                                     0., 0., 0., 0., 0., 0.]
+
     def __get_now(self, timestep):
         s = model.start_month.split('/')
         start = date(int(s[1]), int(s[0]), 1)
@@ -325,65 +366,15 @@ class YassoController(Controller):
                     self.timemap[timestep].append(i)
         return self.timemap[timestep]
 
-    def __predict(self, initial, litter, climate):
+    def __predict(self, sizeclass, initial, litter, climate):
         if self.predictor is None:
             self.predictor = ModelRunner(model.timestep)
-        init, infall, endstate = self.predictor.predict(initial, litter,
-                                                        climate, self.ml_run)
-        woody = endstate[0]
-        nonwoody = endstate[1:]
-        sizeclass = infall[-1]
-        infall = infall[:-1]
-        if sizeclass > 0.0:
-            # for woody components, the different chemical components in
-            # inital state and infall are just added together
-            self.c_ts_initial[0] += sum(init)
-            self.c_ts_infall[0] += sum(infall)
-        else:
-            # for non woody components the chemical component masses are
-            # stored separately
-            self.c_ts_initial[1:] = numpy.add(self.c_ts_initial[1:], init)
-            self.c_ts_infall[1:] = numpy.add(self.c_ts_infall[1:], infall)
-        return woody, nonwoody
-
-    def __process_next_nw_init(self, mode, nonwoody=None):
-        if mode == 'init':
-            self.next_nw_init = numpy.array([0., 0., 0., 0., 0.], dtype=float)
-        elif mode == 'add':
-            self.next_nw_init += nonwoody
-        elif mode == 'copy2initial':
-            nonwoody = self.next_nw_init
-            totmass = sum(nonwoody)
-            self.initial[0.0] = [totmass, 0.,
-                                 nonwoody[0] / totmass, 0.,
-                                 nonwoody[1] / totmass, 0.,
-                                 nonwoody[2] / totmass, 0.,
-                                 nonwoody[3] / totmass, 0.,
-                                 nonwoody[4] / totmass, 0.]
-
-    def run_model(self):
-        timesteps = self.__calculate_timesteps()
-        for j in range(model.sample_size):
-            self.ml_run = True
-            for k in range(timesteps):
-                self.c_ts_initial = numpy.zeros(6)
-                self.c_ts_infall = numpy.zeros(6)
-                self.__create_input(k)
-                self.__process_next_nonwoody_init('init', k)
-                for sizeclass in self.initial:
-                    climate = self.__construct_climate(k)
-                    woody, nonwoody = self.__predict(self.initial[sizeclass],
-                                                self.litter[sizeclass], climate)
-                    if sizeclass > 0.0:
-                        # woody output as the initial state woody mass for the
-                        # next timestep for this size class
-                        self.initial[sizeclass][0] = woody
-                    self.__process_nonwoody_initial('add', nonwoody)
-                    self.__add_c_stock_result(j, k, woody, nonwoody)
-                    self.ml_run = False
-                self.__process_next_nonwoody_init('copy2initial')
-                self.__calculate_c_change(j, k)
-                self.__calculate_co2_yield(j, k)
+        init, infall, endstate = self.predictor.predict(sizeclass, initial,
+                                        litter, climate, self.ml_run, self.draw,
+                                        model.litter_mode)
+        self.ts_initial += sum(init)
+        self.ts_infall += sum(infall)
+        self.__add_c_stock_result(j, k, endstate)
 
 yasso = YassoController(model=YassoModel())
 
