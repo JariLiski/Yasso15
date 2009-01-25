@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from numpy import array, float32
+import numpy
+import math
 from datetime import date
 import random
 from y07 import yasso
 
-PARAMFILE = 'mc5_y07_a01.data'
+PARAMFILE = 'mc5_y07_a01.dat'
 # the order in which data comes in (defined by list index) and in which
 # it should passed to the model (defined in the tuple)
 VALUESPEC = [('mass', None), ('acid', 0), ('water', 1), ('ethanol', 2),
@@ -26,15 +27,17 @@ class ModelRunner(object):
         f = open(PARAMFILE)
         first = [float(val) for val in f.readline().split()]
         parr = numpy.array([first])
-        for line in f:
-            data = [float(val) for val in line]
-            parr = numpy.append(parr, [data])
+        parr.shape = (1, len(first))
+        #for line in f:
+        #    data = [float(val) for val in line.split()]
+        #    parr = numpy.append(parr, [data], axis=0)
         self._model_param = parr
         f.close()
 
     def run_model(self, modeldata):
+        self.md = modeldata
         timesteps = self.__calculate_timesteps()
-        for j in range(modeldata.sample_size):
+        for j in range(self.md.sample_size):
             self.ml_run = True
             self.draw = True
             for k in range(timesteps):
@@ -63,7 +66,7 @@ class ModelRunner(object):
         res -- model results augmented with timestep, iteration and
                sizeclass data
         """
-        cs = modeldata.c_stock
+        cs = self.md.c_stock
         # if sizeclass is non-zero, all the components are added together
         # to get the mass of wood
         if sc > 0:
@@ -91,8 +94,8 @@ class ModelRunner(object):
         s -- sample ordinal
         ts -- timestep ordinal
         """
-        cc = modeldata.c_change
-        cs = modeldata.c_stock
+        cc = self.md.c_change
+        cs = self.md.c_stock
         criterium = (cs[:,0]==s) & (cs[:,1]==ts)
         nowtarget = numpy.where(criterium)[0]
         criterium = (cs[:,0]==s) & (cs[:,1]==ts-1)
@@ -110,8 +113,8 @@ class ModelRunner(object):
         s -- sample ordinal
         ts -- timestep ordinal
         """
-        cs = modeldata.c_stock
-        cy = modeldata.co2_yield
+        cs = self.md.c_stock
+        cy = self.md.co2_yield
         stepinf = numpy.array([[s, ts, 0.]], dtype=numpy.float32)
         cy = numpy.append(cc, stepinf, axis=0)
         # total organic matter at index 3
@@ -119,7 +122,7 @@ class ModelRunner(object):
         cc[-1, 2] = self.ts_initial + self.ts_infall - atend
 
     def __calculate_timesteps(self):
-        return int(math.ceil(modeldata.simulation_length / modeldata.timestep))
+        return int(math.ceil(self.md.simulation_length / self.md.timestep))
 
     def __construct_climate(self, timestep):
         """
@@ -129,18 +132,18 @@ class ModelRunner(object):
         cl = {}
         now = self.__get_now(timestep).month
         cl['start month'] = now.month
-        if modeldata.duration_unit == 'month':
-            dur = modeldata.timestep / 12.
-        elif modeldata.duration_unit == 'year':
-            dur = modeldata.timestep
+        if self.md.duration_unit == 'month':
+            dur = self.md.timestep / 12.
+        elif self.md.duration_unit == 'year':
+            dur = self.md.timestep
         cl['duration'] = dur
-        if modeldata.climate_mode == 'constant':
-            cl['rain'] = modeldata.constant_climate.annual_rainfall
-            cl['temp'] = modeldata.constant_climate.mean_temperature
+        if self.md.climate_mode == 'constant':
+            cl['rain'] = self.md.constant_climate.annual_rainfall
+            cl['temp'] = self.md.constant_climate.mean_temperature
             cl['amplitude'] = month.constant_climate.variation_amplitude
-        elif modeldata.climate_mode == 'monthly':
+        elif self.md.climate_mode == 'monthly':
             cl = self.__construct_monthly_climate(cl, now.month, dur / 12.)
-        elif modeldata.climate_mode == 'yearly':
+        elif self.md.climate_mode == 'yearly':
             cl = self.__construct_yearly_climate(cl, now.month, now.year, dur)
         return cl
 
@@ -166,11 +169,11 @@ class ModelRunner(object):
         temp = 0.0
         maxtemp, mintemp = 0.0
         for m in months:
-            mtemp = modeldata.monthly_climate[m].temperature
+            mtemp = self.md.monthly_climate[m].temperature
             temp += mtemp
             if mtemp < mintemp: mintemp = mtemp
             if mtepm > maxtemp: maxtemp = mtemp
-            rain = modeldata.monthly_climate[m].rainfall
+            rain = self.md.monthly_climate[m].rainfall
         cl['rain'] = rain / len(months)
         cl['temp'] = temp / len(months)
         cl['amplitude'] = (maxtemp - mintemp) / 2.0
@@ -193,7 +196,7 @@ class ModelRunner(object):
         ampl = 0.0
         years = range(sy, sy + int(dur))
         for ind in range(len(years)):
-            for cy in modeldata.yearly_climate:
+            for cy in self.md.yearly_climate:
                 if cy.year == years[ind]:
                     if ind == 0:
                         weight = firstyearweight
@@ -216,13 +219,13 @@ class ModelRunner(object):
         inputs by size class.
         """
         if timestep == 0:
-            if modeldata.initial_mode == 'non zero':
-                self.__define_components(modeldata.initial_litter, self.initial)
-        if modeldata.litter_mode == 'constant':
-            self.__define_components(modeldata.constant_litter, self.litter)
+            if self.md.initial_mode == 'non zero':
+                self.__define_components(self.md.initial_litter, self.initial)
+        if self.md.litter_mode == 'constant':
+            self.__define_components(self.md.constant_litter, self.litter)
         else:
             timeind = self.__map_timestep2timeind(timestep)
-            self.__define_components(modeldata.timeseries_litter, self.litter,
+            self.__define_components(self.md.timeseries_litter, self.litter,
                                      ind=timeind)
         self.__fill_input()
 
@@ -273,9 +276,9 @@ class ModelRunner(object):
             e_std = e_std / m
             n_std = n_std / m
             h_std = h_std / m
-            if modeldata.duration_unit == 'month' and \
+            if self.md.duration_unit == 'month' and \
                self.litter_input_resolution == 'year':
-                   div = modeldata.timestep/12.
+                   div = self.md.timestep/12.
             else:
                 div = 1.
             tome[sc] = [m / div, m_std, a / div, a_std, w / div, w_std,
@@ -329,11 +332,11 @@ class ModelRunner(object):
                                     0., 0., 0., 0., 0., 0.]
 
     def __get_now(self, timestep):
-        s = modeldata.start_month.split('/')
+        s = self.md.start_month.split('/')
         start = date(int(s[1]), int(s[0]), 1)
-        if modeldata.duration_unit == 'month':
+        if self.md.duration_unit == 'month':
             now = start + relativedelta(months=timestep)
-        elif modeldata.duration_unit == 'year':
+        elif self.md.duration_unit == 'year':
             now = start + relativedelta(years=timestep)
         return now
 
@@ -346,8 +349,8 @@ class ModelRunner(object):
         """
         if timestep not in self.timemap:
             now = self.__get_now(timestep)
-            for i in range(len(modeldata.timeseries_litter)):
-                ltime = modeldata.timeseries_litter[i].time.split('/')
+            for i in range(len(self.md.timeseries_litter)):
+                ltime = self.md.timeseries_litter[i].time.split('/')
                 if len(ltime) == 1:
                     lmonth = None
                     lyear = int(ltime[0])
@@ -356,14 +359,14 @@ class ModelRunner(object):
                     lmonth = int(ltime[0])
                     lyear = int(ltime[1])
                     self.litter_input_resolution = 'month'
-                if modeldata.duration_unit == 'month' and now.year == lyear:
+                if self.md.duration_unit == 'month' and now.year == lyear:
                     if lmonth is not None:
                         if now.month == lmonth:
                             self.timemap[timestep].append(i)
                     else:
                         self.litter_input_resolution = 'year'
                         self.timemap[timestep].append(i)
-                elif modeldata.duration_unit == 'year' and now.year == lyear:
+                elif self.md.duration_unit == 'year' and now.year == lyear:
                     self.timemap[timestep].append(i)
         return self.timemap[timestep]
 
@@ -399,7 +402,7 @@ class ModelRunner(object):
             # initial values drawn randomly only for the "draw" run
             # i.e. for the first run after maximum likelihood run
             init = self.__draw_from_distr(initial, VALUESPEC, True)
-            if modeldata.litter_model == 'timeseries':
+            if self.md.litter_model == 'timeseries':
                 # if litter input is a timeseries, drawn at each step
                 # for constant input the values drawn at the beginning used
                 self.infall[sc] = self.__draw_from_distr(litter, VALUESPEC,

@@ -6,6 +6,8 @@ from datetime import date
 from enthought.traits.api import *
 from enthought.traits.ui.api import *
 from enthought.traits.ui.menu import *
+from enthought.traits.ui.table_column import ObjectColumn
+from enthought.traits.ui.file_dialog import open_file
 
 from modelcall import ModelRunner
 
@@ -30,7 +32,19 @@ class LitterComponent(HasTraits):
 class TimedLitterComponent(HasTraits):
     time = String(minlen=4, maxlen=7,
                   regex='^([1|2|3|4|5|6|7|8|9|10|11|12]/){0,1}(\d{4})$')
-    litter = LitterComponent()
+    mass = Float()
+    mass_std = Float()
+    acid = Range(low=0.0, high=100.0)
+    acid_std = Float()
+    water = Range(low=0.0, high=100.0)
+    water_std = Float()
+    ethanol = Range(low=0.0, high=100.0)
+    ethanol_std = Float()
+    non_soluble = Range(low=0.0, high=100.0)
+    non_soluble_std = Float()
+    humus = Range(low=0.0, high=100.0)
+    humus_std = Float()
+    size_class = Float(default=0.0)
 
 class ConstantClimate(HasTraits):
     annual_rainfall = Float()
@@ -44,9 +58,80 @@ class MonthlyClimate(HasTraits):
 
 class YearlyClimate(HasTraits):
     year = Int()
-    annual_rainfall = Float()
     mean_temperature = Float()
     variation_amplitude = Float()
+    annual_rainfall = Float()
+
+###############################################################################
+# Table editors
+###############################################################################
+
+monthly_climate_te = TableEditor(
+    columns = [ObjectColumn(name='month', width=100, editable=False),
+               ObjectColumn(name='temperature', width=100),
+               ObjectColumn(name='rainfall', width=100),],
+    auto_size   = False,
+    orientation = 'vertical')
+
+yearly_climate_te = TableEditor(
+    columns = [ObjectColumn(name='year', width=100),
+               ObjectColumn(name='mean_temperature', width=100),
+               ObjectColumn(name='variation_amplitude', width=100),
+               ObjectColumn(name='annual_rainfall', width=100)],
+    auto_size    = False,
+    auto_add     = True,
+    editable     = True,
+    deletable    = True,
+    orientation  = 'vertical',
+    show_toolbar = True,
+    row_factory  = YearlyClimate)
+
+litter_component_te = TableEditor(
+    columns = [ObjectColumn(name='mass', width=60),
+               ObjectColumn(name='mass_std', width=60),
+               ObjectColumn(name='acid', width=60),
+               ObjectColumn(name='acid_std', width=60),
+               ObjectColumn(name='water', width=60),
+               ObjectColumn(name='water_std', width=60),
+               ObjectColumn(name='ethanol', width=60),
+               ObjectColumn(name='ethanol_std', width=60),
+               ObjectColumn(name='non_soluble', width=60),
+               ObjectColumn(name='non_soluble_std', width=60),
+               ObjectColumn(name='humus', width=60),
+               ObjectColumn(name='humus_std', width=60),
+               ObjectColumn(name='size_class', width=60),
+               ],
+    auto_size    = False,
+    auto_add     = True,
+    editable     = True,
+    deletable    = True,
+    orientation  = 'vertical',
+    show_toolbar = True,
+    row_factory  = LitterComponent)
+
+timed_litter_component_te = TableEditor(
+    columns = [ObjectColumn(name='time', width=60),
+               ObjectColumn(name='mass', width=60),
+               ObjectColumn(name='mass_std', width=60),
+               ObjectColumn(name='acid', width=60),
+               ObjectColumn(name='acid_std', width=60),
+               ObjectColumn(name='water', width=60),
+               ObjectColumn(name='water_std', width=60),
+               ObjectColumn(name='ethanol', width=60),
+               ObjectColumn(name='ethanol_std', width=60),
+               ObjectColumn(name='non_soluble', width=60),
+               ObjectColumn(name='non_soluble_std', width=60),
+               ObjectColumn(name='humus', width=60),
+               ObjectColumn(name='humus_std', width=60),
+               ObjectColumn(name='size_class', width=60),
+               ],
+    auto_size    = False,
+    auto_add     = True,
+    editable     = True,
+    deletable    = True,
+    orientation  = 'vertical',
+    show_toolbar = True,
+    row_factory  = TimedLitterComponent)
 
 ###############################################################################
 # Yasso model
@@ -58,7 +143,7 @@ class Yasso(HasTraits):
     The Yasso model
     """
     # Initial condition
-    initial_mode = Enum(['zero', 'non zero'])
+    initial_mode = Enum(['non zero', 'zero'])
     initial_litter = List(trait=LitterComponent)
     # Litter input at each timestep in the simulation
     litter_mode = Enum(['constant', 'timeseries'])
@@ -91,6 +176,11 @@ class Yasso(HasTraits):
     timestep = Range(low=1)
     simulation_length = Range(low=1)
     modelrun_event = Button('Run model')
+    load_init_event = Button('Load from file...')
+    load_constant_litter_event = Button('Load constant input...')
+    load_timed_litter_event = Button('Load timeseries input...')
+    load_monthly_climate_event = Button('Load monthly data...')
+    load_yearly_climate_event = Button('Load yearly data...')
     # and the results stored
     # Individual model calls
     #     time,iteration, total, woody, acid, water, ethanol, non_soluble, humus
@@ -124,53 +214,233 @@ class Yasso(HasTraits):
 # UI view
 #############################################################
 
-    view = View(VGroup(HGroup(Item(name='initial_mode', style='custom'),
-                              spring),
+    view = View(VGroup(
+                       HGroup(
+                              Item(name='initial_mode',
+                                   style='custom'
+                                  ),
+                              spring,
+                              Item(name='load_init_event',
+                                   show_label=False,
+                                   visible_when='initial_mode=="non zero"',
+                                  ),
+                             ),
                        Item('initial_litter',
-                            enabled_when='initial_mode=="non zero"'),
+                            visible_when='initial_mode=="non zero"',
+                            show_label=False,
+                            editor=litter_component_te,
+                           ),
                        label='Initial condition'
                       ),
-                VGroup(HGroup(Item('litter_mode', style='custom'), spring),
+                VGroup(
+                       HGroup(
+                              Item('litter_mode',
+                                   style='custom'
+                                  ),
+                              spring,
+                              Item(name='load_constant_litter_event',
+                                   show_label=False,
+                                   visible_when='litter_mode=="constant"',
+                                  ),
+                              Item(name='load_timed_litter_event',
+                                   show_label=False,
+                                   visible_when='litter_mode=="timeseries"',
+                                  ),
+                             ),
                        Item('constant_litter',
                             visible_when='litter_mode=="constant"',
-                            show_label=False
-                            ),
+                            show_label=False,
+                            editor=litter_component_te,
+                           ),
                        Item('timeseries_litter',
                             visible_when='litter_mode=="timeseries"',
-                            show_label=False
-                            ),
+                            show_label=False,
+                            editor=timed_litter_component_te,
+                           ),
                        label='Litter input'
                       ),
-                VGroup(HGroup(Item('climate_mode', style='custom'), spring),
-                       Group(Item('object.constant_climate.annual_rainfall'),
-                             Item('object.constant_climate.mean_temperature'),
-                             Item('object.constant_climate.variation_amplitude'),
+                VGroup(
+                       HGroup(
+                              Item('climate_mode',
+                                   style='custom'
+                                  ),
+                              spring,
+                              Item(name='load_yearly_climate_event',
+                                   show_label=False,
+                                   visible_when='climate_mode=="yearly"',
+                                  ),
+                              Item(name='load_monthly_climate_event',
+                                   show_label=False,
+                                   visible_when='climate_mode=="monthly"',
+                                  ),
+                             ),
+                       Item('monthly_climate',
+                            show_label=False,
+                            visible_when='climate_mode=="monthly"',
+                            editor=monthly_climate_te
+                           ),
+                       Item('yearly_climate',
+                            show_label=False,
+                            visible_when='climate_mode=="yearly"',
+                            width=-200,
+                            editor=yearly_climate_te
+                           ),
+                       VGroup(
+                             Item('object.constant_climate.annual_rainfall',
+                                  width=-200,
+                                 ),
+                             Item('object.constant_climate.mean_temperature',
+                                  width=-200,
+                                 ),
+                             Item('object.constant_climate.variation_amplitude',
+                                  width=-200,
+                                 ),
                              label='Constant climate',
                              show_border=True,
-                             enabled_when='climate_mode=="constant"'),
-                       Item('monthly_climate',
-                            enabled_when='climate_mode=="monthly"'),
-                       Item('yearly_climate',
-                            enabled_when='climate_mode=="yearly"'),
+                             visible_when='climate_mode=="constant"'),
                        label='Climate'
                       ),
-                VGroup(HGroup(Item('sample_size'),spring),
-                       HGroup(Item('duration_unit', style='custom'),spring),
-                       HGroup(Item('timestep'), spring),
-                       HGroup(Item('simulation_length'), spring),
-                       HGroup(Item('modelrun_event', show_label=False),
-                                   spring),
+                VGroup(
+                       HGroup(
+                              Item('sample_size',
+                                   width=-60
+                                  ),
+                              spring
+                             ),
+                       HGroup(
+                              Item('timestep',
+                                   width=-20,
+                                  ),
+                              Item('duration_unit',
+                                   style='custom',
+                                   show_label=False,
+                                  ),
+                              spring
+                             ),
+                       HGroup(
+                              Item('simulation_length',
+                                   width=-20,
+                                   label='# of timesteps',
+                                  ),
+                              spring,
+                             ),
+                       HGroup(
+                              Item('modelrun_event',
+                                   show_label=False
+                                  ),
+                              spring
+                             ),
                        label='Model run',
                       ),
                 title     = 'Yasso 07',
                 id        = 'simosol.yasso07',
                 dock      = 'horizontal',
                 resizable = True,
+                scrollable= True,
                 buttons   = NoButtons
                 )
 
+###############################################################################
+# Event handlers
+###############################################################################
+
     def _modelrun_event_fired(self):
-        yassorunner.run_model(self)
+        self.yassorunner.run_model(self)
+
+    def _load_init_event_fired(self):
+        filename = open_file()
+        if filename != '':
+            self.__load_litter_components(filename, self.initial_litter)
+
+    def _load_constant_litter_event_fired(self):
+        filename = open_file()
+        if filename != '':
+            self.__load_litter_components(filename, self.constant_litter)
+
+    def _load_timed_litter_event_fired(self):
+        filename = open_file()
+        if filename != '':
+            self.__load_litter_components(filename, self.timeseries_litter,
+                                          hastime=True)
+
+    def _load_yearly_climate_event_fired(self):
+        filename = open_file()
+        if filename != '':
+            try:
+                f=open(filename)
+                self.yearly_climate = []
+                for line in f:
+                    data = line.split()
+                    if len(data)==4:
+                        obj = YearlyClimate(year=int(data[0]),
+                                  mean_temperature=float(data[1]),
+                                  variation_amplitude=float(data[2]),
+                                  annual_rainfall=float(data[3]))
+                        self.yearly_climate.append(obj)
+                f.close()
+            except:
+                pass
+
+    def _load_monthly_climate_event_fired(self):
+        filename = open_file()
+        if filename != '':
+            try:
+                f=open(filename)
+                self.monthly_climate = []
+                for line in f:
+                    data = line.split()
+                    if len(data)==3:
+                        obj = MonthlyClimate(month=int(data[0]),
+                                  temperature=float(data[1]),
+                                  rainfall=float(data[2]))
+                        self.monthly_climate.append(obj)
+                f.close()
+            except:
+                pass
+
+    def __load_litter_components(filename, target, hastime=False):
+        try:
+            f=open(filename)
+            target = []
+            for line in f:
+                obj = None
+                data = line.split()
+                if hastime:
+                    if len(data)==14:
+                        obj = LitterComponent(time=data[0],
+                                mass=float(data[1]),
+                                mass_std=float(data[2]),
+                                acid=float(data[3]),
+                                acid_std=float(data[4]),
+                                water=float(data[5]),
+                                water_std=float(data[6]),
+                                ethanol=float(data[7]),
+                                ethanol_std=float(data[8]),
+                                non_soluble=float(data[9]),
+                                non_soluble_std=float(data[10]),
+                                humus=float(data[11]),
+                                humus_std=float(data[12]),
+                                size_class=float(data[13]))
+                else:
+                    if len(data)==13:
+                        obj = LitterComponent(mass=float(data[0]),
+                                mass_std=float(data[1]),
+                                acid=float(data[2]),
+                                acid_std=float(data[3]),
+                                water=float(data[4]),
+                                water_std=float(data[5]),
+                                ethanol=float(data[6]),
+                                ethanol_std=float(data[7]),
+                                non_soluble=float(data[8]),
+                                non_soluble_std=float(data[9]),
+                                humus=float(data[10]),
+                                humus_std=float(data[11]),
+                                size_class=float(data[12]))
+                if obj is not None:
+                    target.append(obj)
+            f.close()
+        except:
+            pass
 
 yasso = Yasso()
 
