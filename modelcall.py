@@ -4,7 +4,10 @@
 import numpy
 import math
 from datetime import date
+from collections import defaultdict
 import random
+from scipy.stats import stats
+from enthought.pyface.api import ProgressDialog
 from y07 import yasso
 
 PARAMFILE = 'mc5_y07_a01.dat'
@@ -36,8 +39,18 @@ class ModelRunner(object):
 
     def run_model(self, modeldata):
         self.md = modeldata
+        self.timemap = defaultdict(list)
+        samplesize = self.md.sample_size
+        progress = ProgressDialog(title="Simulation",
+                                  message="Simulating %d samples" % samplesize,
+                                  max=samplesize, show_time=True,
+                                  can_cancel=True)
+        progress.open()
         timesteps = self.__calculate_timesteps()
-        for j in range(self.md.sample_size):
+        for j in range(samplesize):
+            (cont, skip) = progress.update(j)
+            if not cont or skip:
+                break
             self.ml_run = True
             self.draw = True
             for k in range(timesteps):
@@ -58,6 +71,8 @@ class ModelRunner(object):
                 self.ml_run = False
                 self.__calculate_c_change(j, k)
                 self.__calculate_co2_yield(j, k)
+        self.__fill_results()
+        progress.update(samplesize)
 
     def __add_c_stock_result(self, sample, timestep, sc, endstate):
         """
@@ -140,7 +155,7 @@ class ModelRunner(object):
         if self.md.climate_mode == 'constant':
             cl['rain'] = self.md.constant_climate.annual_rainfall
             cl['temp'] = self.md.constant_climate.mean_temperature
-            cl['amplitude'] = month.constant_climate.variation_amplitude
+            cl['amplitude'] = self.md.constant_climate.variation_amplitude
         elif self.md.climate_mode == 'monthly':
             cl = self.__construct_monthly_climate(cl, now.month, dur / 12.)
         elif self.md.climate_mode == 'yearly':
@@ -331,6 +346,44 @@ class ModelRunner(object):
                 self.initial[sc] = [0., 0., 0., 0., 0., 0.,
                                     0., 0., 0., 0., 0., 0.]
 
+    def __fill_moment_results(self):
+        """
+        Fills the result arrays used for storing the calculated moments
+         common format: time, mean, mode, var, skewness, kurtosis,
+                        95% confidence lower limit, 95% upper limit
+        """
+        md = self.md
+        toprocess = [(md.stock_tom, md.c_stock, 2),
+                     (md.stock_woody, md.c_stock, 3),
+                     (md.stock_acid, md.c_stock, 4),
+                     (md.stock_water, md.c_stock, 5),
+                     (md.stock_ethanol, md.c_stock, 6),
+                     (md.stock_non_soluble, md.c_stock, 7),
+                     (md.stock_humus, md.c_stock, 8),
+                     (md.change_tom, md.c_change, 2),
+                     (md.change_woody, md.c_change, 3),
+                     (md.change_acid, md.c_change, 4),
+                     (md.change_water, md.c_change, 5),
+                     (md.change_ethanol, md.c_change, 6),
+                     (md.change_non_soluble, md.c_change, 7),
+                     (md.change_humus, md.c_change, 8),
+                     (md.co2, md.co2_yield, 2)]
+        for (resarr, dataarr, dataind) in toprocess:
+            # filter time steps
+            ts = numpy.unique(dataarr[:,1])
+            # extract data for the timestep
+            for timestep in ts:
+                ind = numpy.where(dataarr[:,1]==timestep)
+                mean = stats.mean(dataarr[ind[0], dataind])
+                mode = stats.mode(dataarr[ind[0], dataind])
+                var = stats.var(dataarr[ind[0], dataind])
+                skew = stats.skew(dataarr[ind[0], dataind])
+                kurtosis = stats.kurtosis(dataarr[ind[0], dataind])
+                sd2 = 2 * math.sqrt(var)
+                res = [timestep, mean, mode, var, skew, kurtosis,
+                       mean - sd2, mean + sd2]
+                resarr = numpy.append(resarr, res, axis=0)
+
     def __get_now(self, timestep):
         s = self.md.start_month.split('/')
         start = date(int(s[1]), int(s[0]), 1)
@@ -363,6 +416,7 @@ class ModelRunner(object):
                     if lmonth is not None:
                         if now.month == lmonth:
                             self.timemap[timestep].append(i)
+                        # NB! what about else?
                     else:
                         self.litter_input_resolution = 'year'
                         self.timemap[timestep].append(i)

@@ -7,7 +7,9 @@ from enthought.traits.api import *
 from enthought.traits.ui.api import *
 from enthought.traits.ui.menu import *
 from enthought.traits.ui.table_column import ObjectColumn
-from enthought.traits.ui.file_dialog import open_file
+from enthought.traits.ui.file_dialog import open_file, save_file
+from enthought.traits.ui.tabular_adapter import TabularAdapter
+from enthought.chaco.chaco_plot_editor import ChacoPlotItem
 
 from modelcall import ModelRunner
 
@@ -89,15 +91,15 @@ yearly_climate_te = TableEditor(
 litter_component_te = TableEditor(
     columns = [ObjectColumn(name='mass', width=60),
                ObjectColumn(name='mass_std', width=60),
-               ObjectColumn(name='acid', width=60),
+               ObjectColumn(name='acid', width=60, style='text'),
                ObjectColumn(name='acid_std', width=60),
-               ObjectColumn(name='water', width=60),
+               ObjectColumn(name='water', width=60, style='text'),
                ObjectColumn(name='water_std', width=60),
-               ObjectColumn(name='ethanol', width=60),
+               ObjectColumn(name='ethanol', width=60, style='text'),
                ObjectColumn(name='ethanol_std', width=60),
-               ObjectColumn(name='non_soluble', width=60),
+               ObjectColumn(name='non_soluble', width=60, style='text'),
                ObjectColumn(name='non_soluble_std', width=60),
-               ObjectColumn(name='humus', width=60),
+               ObjectColumn(name='humus', width=60, style='text'),
                ObjectColumn(name='humus_std', width=60),
                ObjectColumn(name='size_class', width=60),
                ],
@@ -113,15 +115,15 @@ timed_litter_component_te = TableEditor(
     columns = [ObjectColumn(name='time', width=60),
                ObjectColumn(name='mass', width=60),
                ObjectColumn(name='mass_std', width=60),
-               ObjectColumn(name='acid', width=60),
+               ObjectColumn(name='acid', width=60, style='text'),
                ObjectColumn(name='acid_std', width=60),
-               ObjectColumn(name='water', width=60),
+               ObjectColumn(name='water', width=60, style='text'),
                ObjectColumn(name='water_std', width=60),
-               ObjectColumn(name='ethanol', width=60),
+               ObjectColumn(name='ethanol', width=60, style='text'),
                ObjectColumn(name='ethanol_std', width=60),
-               ObjectColumn(name='non_soluble', width=60),
+               ObjectColumn(name='non_soluble', width=60, style='text'),
                ObjectColumn(name='non_soluble_std', width=60),
-               ObjectColumn(name='humus', width=60),
+               ObjectColumn(name='humus', width=60, style='text'),
                ObjectColumn(name='humus_std', width=60),
                ObjectColumn(name='size_class', width=60),
                ],
@@ -132,6 +134,28 @@ timed_litter_component_te = TableEditor(
     orientation  = 'vertical',
     show_toolbar = True,
     row_factory  = TimedLitterComponent)
+
+class CStockAdapter(TabularAdapter):
+    columns = [('sample', 0), ('time step', 1), ('total om', 2),
+               ('woody om', 3), ('acid', 4), ('water', 5), ('ethanol', 6),
+               ('non soluble', 7), ('humus', 8)]
+    font        = 'Courier 10'
+    alignment   = 'right'
+    format      = '%.4f'
+
+class CO2YieldAdapter(TabularAdapter):
+    columns = [('sample', 0), ('time step', 1), ('CO2 yield', 2)]
+    font        = 'Courier 10'
+    alignment   = 'right'
+    format      = '%.4f'
+
+c_stock_te = TabularEditor(
+    adapter = CStockAdapter(),
+   )
+
+co2_yield_te = TabularEditor(
+    adapter = CO2YieldAdapter(),
+   )
 
 ###############################################################################
 # Yasso model
@@ -175,38 +199,41 @@ class Yasso(HasTraits):
     duration_unit = Enum(['month', 'year'])
     timestep = Range(low=1)
     simulation_length = Range(low=1)
+    result_type = Enum(['C stock', 'C change', 'CO2 yield'])
+    presentation_type = Enum(['array', 'chart'])
+    # Buttons
     modelrun_event = Button('Run model')
     load_init_event = Button('Load from file...')
     load_constant_litter_event = Button('Load constant input...')
     load_timed_litter_event = Button('Load timeseries input...')
     load_monthly_climate_event = Button('Load monthly data...')
     load_yearly_climate_event = Button('Load yearly data...')
+    save_result_event = Button('Save raw results...')
+    save_moment_event = Button('Save moment results...')
     # and the results stored
     # Individual model calls
-    #     time,iteration, total, woody, acid, water, ethanol, non_soluble, humus
+    #     iteration,time, total, woody, acid, water, ethanol, non_soluble, humus
     c_stock = Array(dtype=float32, shape=(None, 9))
-    #     time,iteration, total, woody, acid, water, ethanol, non_soluble, humus
+    #     iteration,time, total, woody, acid, water, ethanol, non_soluble, humus
     c_change = Array(dtype=float32, shape=(None, 9))
     #     time, iteration, CO2 yield
     co2_yield = Array(dtype=float32, shape=(None, 3))
-    # summary results
-    #     common format: time, mean, mode, var, skewness, kurtosis,
-    #     50%, 90%, 95%, 99%
-    c_stock_total_organic = Array(dtype=float32, shape=(None, 10))
-    c_stock_acid = Array(dtype=float32, shape=(None, 10))
-    c_stock_water = Array(dtype=float32, shape=(None, 10))
-    c_stock_ethanol = Array(dtype=float32, shape=(None, 10))
-    c_stock_non_soluble = Array(dtype=float32, shape=(None, 10))
-    c_stock_humus = Array(dtype=float32, shape=(None, 10))
-    c_stock_woody = Array(dtype=float32, shape=(None, 10))
-    c_change_total_organic = Array(dtype=float32, shape=(None, 10))
-    c_change_acid = Array(dtype=float32, shape=(None, 10))
-    c_change_water = Array(dtype=float32, shape=(None, 10))
-    c_change_ethanol = Array(dtype=float32, shape=(None, 10))
-    c_change_non_soluble = Array(dtype=float32, shape=(None, 10))
-    c_change_humus = Array(dtype=float32, shape=(None, 10))
-    c_change_woody = Array(dtype=float32, shape=(None, 10))
-    co2 = Array(dtype=float32, shape=(None, 10))
+    # time, mean, mode, var, skewness, kurtosis, 95% conf-, 95% conf+
+    stock_tom = Array(dtype=float32, shape=(None, 8))
+    stock_woody = Array(dtype=float32, shape=(None, 8))
+    stock_acid = Array(dtype=float32, shape=(None, 8))
+    stock_water = Array(dtype=float32, shape=(None, 8))
+    stock_ethanol = Array(dtype=float32, shape=(None, 8))
+    stock_non_soluble = Array(dtype=float32, shape=(None, 8))
+    stock_humus = Array(dtype=float32, shape=(None, 8))
+    change_tom = Array(dtype=float32, shape=(None, 8))
+    change_woody = Array(dtype=float32, shape=(None, 8))
+    change_acid = Array(dtype=float32, shape=(None, 8))
+    change_water = Array(dtype=float32, shape=(None, 8))
+    change_ethanol = Array(dtype=float32, shape=(None, 8))
+    change_non_soluble = Array(dtype=float32, shape=(None, 8))
+    change_humus = Array(dtype=float32, shape=(None, 8))
+    co2 = Array(dtype=float32, shape=(None, 8))
 
     yassorunner = ModelRunner()
 
@@ -305,9 +332,6 @@ class Yasso(HasTraits):
                               Item('sample_size',
                                    width=-60
                                   ),
-                              spring
-                             ),
-                       HGroup(
                               Item('timestep',
                                    width=-20,
                                   ),
@@ -315,21 +339,192 @@ class Yasso(HasTraits):
                                    style='custom',
                                    show_label=False,
                                   ),
-                              spring
-                             ),
-                       HGroup(
                               Item('simulation_length',
-                                   width=-20,
+                                   width=-40,
                                    label='# of timesteps',
+                                  ),
+                              Item('modelrun_event',
+                                   show_label=False
                                   ),
                               spring,
                              ),
                        HGroup(
-                              Item('modelrun_event',
-                                   show_label=False
+                              Item('result_type',
+                                   style='custom',
+                                   label='Show',
                                   ),
-                              spring
+                              Item('save_result_event',
+                                   show_label=False,
+                                  ),
+                              Item('save_moment_event',
+                                   show_label=False,
+                                  ),
+                              spring,
                              ),
+                       HGroup(
+                              Item('presentation_type',
+                                   style='custom',
+                                   label='As'
+                                  ),
+                              spring,
+                             ),
+                       Item('c_stock',
+                            visible_when='result_type=="C stock" and \
+                                          presentation_type=="array"',
+                            show_label=False,
+                            editor=c_stock_te,
+                           ),
+                       Item('c_change',
+                            visible_when='result_type=="C change" and \
+                                          presentation_type=="array"',
+                            show_label=False,
+                            editor=c_stock_te,
+                           ),
+                       Item('co2_yield',
+                            visible_when='result_type=="CO2 yield" and \
+                                          presentation_type=="array"',
+                            show_label=False,
+                            editor=co2_yield_te,
+                           ),
+                       HGroup(
+                              ChacoPlotItem(index='timestep',
+                                            value='ps_tom',
+                                            show_label=False,
+                                            x_label = 'time',
+                                            y_label = 'total organic matter',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = 'Total organic matter',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              ChacoPlotItem(index='timestep',
+                                            value='ps_woody',
+                                            show_label=False,
+                                            x_label = 'time',
+                                            y_label = 'woody matter',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = 'Woody organic matter',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              ChacoPlotItem(index='timestep',
+                                            value='ps_acid',
+                                            show_label=False,
+                                            x_label = 'time',
+                                            y_label = 'acid soluble',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = 'Acid soluble',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              visible_when='result_type=="C stock" and \
+                                            presentation_type=="chart"',
+                             ),
+                       HGroup(
+                              ChacoPlotItem(index='timestep',
+                                            value='ps_woody',
+                                            show_label=False,
+                                            x_label = 'time',
+                                            y_label = 'water soluble',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = 'Water soluble',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              ChacoPlotItem(index='timestep',
+                                            value='ps_ethanol',
+                                            show_label=False,
+                                            x_label = 'time',
+                                            y_label = 'ethanol soluble',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = 'Ethanol soluble',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              ChacoPlotItem(index='timestep',
+                                            value='ps_non_soluble',
+                                            show_label=False,
+                                            x_label = 'time',
+                                            y_label = 'non soluble',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = 'Non soluble',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              visible_when='result_type=="C stock" and \
+                                            presentation_type=="chart"',
+                             ),
+                       HGroup(
+                              ChacoPlotItem(index='timestep',
+                                            value='ps_humus',
+                                            show_label=False,
+                                            x_label = 'time',
+                                            y_label = 'humus',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = 'Humus',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              ChacoPlotItem(index='',
+                                            value='',
+                                            show_label=False,
+                                            x_label = '',
+                                            y_label = '',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = '',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              ChacoPlotItem(index='',
+                                            value='',
+                                            show_label=False,
+                                            x_label = '',
+                                            y_label = '',
+                                            resizable=True,
+                                            orientation='h',
+                                            title = '',
+                                            color = 'red',
+                                            bgcolor = 'white',
+                                            border_visible=False,
+                                            border_width=1,
+                                            padding_bg_color = 'lightgray'
+                                           ),
+                              visible_when='result_type=="C stock" and \
+                                            presentation_type=="chart"',
+                             ),
+
                        label='Model run',
                       ),
                 title     = 'Yasso 07',
@@ -338,13 +533,37 @@ class Yasso(HasTraits):
                 resizable = True,
                 scrollable= True,
                 buttons   = NoButtons
-                )
+               )
 
 ###############################################################################
 # Event handlers
 ###############################################################################
 
+    @on_trait_change('stock_tom, stock_woody, stock_acid, stock_water, \
+                     stock_non_soluble, stock_humus, change_tom, change_woody,\
+                     change_acid, change_water, change_ethanol, \
+                     change_non_soluble, change_humus, co2')
+    def set_plot_data(self):
+        self.timestep = self.stock_tom[:,0]
+        self.ps_tom = self.stock_tom[:,1]
+        self.ps_woody = self.stock_woody[:,1]
+        self.ps_acid = self.stock_acid[:,1]
+        self.ps_water = self.stock_water[:,1]
+        self.ps_ethanol = self.stock_ethanol[:,1]
+        self.ps_non_soluble = self.stock_non_soluble[:,1]
+        self.ps_humus = self.stock_humus[:,1]
+        self.pc_tom = self.stock_tom[:,1]
+        self.pc_woody = self.stock_woody[:,1]
+        self.pc_acid = self.stock_acid[:,1]
+        self.pc_water = self.stock_water[:,1]
+        self.pc_ethanol = self.stock_ethanol[:,1]
+        self.pc_non_soluble = self.stock_non_soluble[:,1]
+        self.pc_humus = self.stock_humus[:,1]
+        self.p_co2 = self.co2[:,1]
+
+
     def _modelrun_event_fired(self):
+        self.__init_results()
         self.yassorunner.run_model(self)
 
     def _load_init_event_fired(self):
@@ -398,6 +617,64 @@ class Yasso(HasTraits):
             except:
                 pass
 
+    def _save_moment_event_fired(self):
+        filename = save_file()
+        if filename != '':
+            f=open(filename, 'w')
+            if self.result_type=='C stock':
+                comps = (('tom', self.stock_tom), ('woody', self.stock_woody),
+                       ('acid', self.stock_acid), ('water', self.stock_water),
+                       ('non_soluble', self.stock_non_soluble),
+                       ('humus', self.stock_humus))
+                header = '# C stock\n# component, time step, '\
+                         'mean, mode, var, skewness, kurtosis, '\
+                         '95% confidence lower limit, 95% upper limit'
+            elif self.result_type=='C change':
+                comps = (('tom', self.change_tom), ('woody', self.change_woody),
+                       ('acid', self.change_acid), ('water', self.change_water),
+                       ('non_soluble', self.change_non_soluble),
+                       ('humus', self.change_humus))
+                header = '# C change\n# component, time step, '\
+                         'mean, mode, var, skewness, kurtosis, '\
+                         '95% confidence lower limit, 95% upper limit'
+            elif self.result_type=='CO2 yield':
+                comps = (('CO2', self.co2))
+                header = '# CO2 yield\n# component, time step, '\
+                         'mean, mode, var, skewness, kurtosis, '\
+                         '95% confidence lower limit, 95% upper limit'
+            f.write(header+'\n')
+            for comp, res in comps:
+                for row in res:
+                    resrow = ''
+                    for num in row:
+                        resrow = ' '.join([resrow, str(num)])
+                    resrow = ' '.join((comp, resrow))
+                    f.write(resrow+'\n')
+            f.close()
+
+    def _save_result_event_fired(self):
+        filename = save_file()
+        if filename != '':
+            f=open(filename, 'w')
+            if self.result_type=='C stock':
+                res = self.c_stock
+                header = '# sample, time step, total om, woody om, acid, '\
+                         'water, ethanol, non soluble, humus'
+            elif self.result_type=='C change':
+                res = self.c_change
+                header = '# sample, time step, total om, woody om, acid, '\
+                         'water, ethanol, non soluble, humus'
+            elif self.result_type=='CO2 yield':
+                res = self.co2_yield
+                header = '# sample, time step, CO2 yield'
+            f.write(header+'\n')
+            for row in res:
+                resrow = ''
+                for num in row:
+                    resrow = ' '.join([resrow, str(num)])
+                f.write(resrow+'\n')
+            f.close()
+
     def __load_litter_components(filename, target, hastime=False):
         try:
             f=open(filename)
@@ -441,6 +718,36 @@ class Yasso(HasTraits):
             f.close()
         except:
             pass
+
+    def __init_results(self):
+        """
+        model results: stock & change
+         sample, timestep, tom, woody, acid, water, ethanol, non soluble
+         humus
+        model results: CO2
+         sample, timestep, CO2 yield
+        summary results
+         common format: time, mean, mode, var, skewness, kurtosis,
+         95% confidence-, 95% confidence+
+        """
+        self.c_stock = Array(dtype=float32, shape=(None, 9))
+        self.c_change = Array(dtype=float32, shape=(None, 9))
+        self.co2_yield = Array(dtype=float32, shape=(None, 3))
+        self.stock_tom = Array(dtype=float32, shape=(None, 8))
+        self.stock_woody = Array(dtype=float32, shape=(None, 8))
+        self.stock_acid = Array(dtype=float32, shape=(None, 8))
+        self.stock_water = Array(dtype=float32, shape=(None, 8))
+        self.stock_ethanol = Array(dtype=float32, shape=(None, 8))
+        self.stock_non_soluble = Array(dtype=float32, shape=(None, 8))
+        self.stock_humus = Array(dtype=float32, shape=(None, 8))
+        self.change_tom = Array(dtype=float32, shape=(None, 8))
+        self.change_woody = Array(dtype=float32, shape=(None, 8))
+        self.change_acid = Array(dtype=float32, shape=(None, 8))
+        self.change_water = Array(dtype=float32, shape=(None, 8))
+        self.change_ethanol = Array(dtype=float32, shape=(None, 8))
+        self.change_non_soluble = Array(dtype=float32, shape=(None, 8))
+        self.change_humus = Array(dtype=float32, shape=(None, 8))
+        self.co2 = Array(dtype=float32, shape=(None, 8))
 
 yasso = Yasso()
 
