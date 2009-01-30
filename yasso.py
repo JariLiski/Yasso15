@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-from numpy import array, float32
+from numpy import empty, float32
 from datetime import date
 from enthought.traits.api import *
 from enthought.traits.ui.api import *
 from enthought.traits.ui.menu import *
 from enthought.traits.ui.table_column import ObjectColumn
 from enthought.traits.ui.file_dialog import open_file, save_file
+from enthought.traits.ui.message import error
 from enthought.traits.ui.tabular_adapter import TabularAdapter
 from enthought.chaco.chaco_plot_editor import ChacoPlotItem
+
+import pdb
 
 from modelcall import ModelRunner
 
@@ -61,8 +64,8 @@ class MonthlyClimate(HasTraits):
 class YearlyClimate(HasTraits):
     year = Int()
     mean_temperature = Float()
-    variation_amplitude = Float()
     annual_rainfall = Float()
+    variation_amplitude = Float()
 
 ###############################################################################
 # Table editors
@@ -76,10 +79,12 @@ monthly_climate_te = TableEditor(
     orientation = 'vertical')
 
 yearly_climate_te = TableEditor(
-    columns = [ObjectColumn(name='year', width=100),
+    columns = [
+               ObjectColumn(name='year', width=100),
                ObjectColumn(name='mean_temperature', width=100),
+               ObjectColumn(name='annual_rainfall', width=100),
                ObjectColumn(name='variation_amplitude', width=100),
-               ObjectColumn(name='annual_rainfall', width=100)],
+              ],
     auto_size    = False,
     auto_add     = True,
     editable     = True,
@@ -213,27 +218,27 @@ class Yasso(HasTraits):
     # and the results stored
     # Individual model calls
     #     iteration,time, total, woody, acid, water, ethanol, non_soluble, humus
-    c_stock = Array(dtype=float32, shape=(None, 9))
+    c_stock = Array(dtype=float32, shape=(0, 9))
     #     iteration,time, total, woody, acid, water, ethanol, non_soluble, humus
-    c_change = Array(dtype=float32, shape=(None, 9))
+    c_change = Array(dtype=float32, shape=(0, 9))
     #     time, iteration, CO2 yield
-    co2_yield = Array(dtype=float32, shape=(None, 3))
+    co2_yield = Array(dtype=float32, shape=(0, 3))
     # time, mean, mode, var, skewness, kurtosis, 95% conf-, 95% conf+
-    stock_tom = Array(dtype=float32, shape=(None, 8))
-    stock_woody = Array(dtype=float32, shape=(None, 8))
-    stock_acid = Array(dtype=float32, shape=(None, 8))
-    stock_water = Array(dtype=float32, shape=(None, 8))
-    stock_ethanol = Array(dtype=float32, shape=(None, 8))
-    stock_non_soluble = Array(dtype=float32, shape=(None, 8))
-    stock_humus = Array(dtype=float32, shape=(None, 8))
-    change_tom = Array(dtype=float32, shape=(None, 8))
-    change_woody = Array(dtype=float32, shape=(None, 8))
-    change_acid = Array(dtype=float32, shape=(None, 8))
-    change_water = Array(dtype=float32, shape=(None, 8))
-    change_ethanol = Array(dtype=float32, shape=(None, 8))
-    change_non_soluble = Array(dtype=float32, shape=(None, 8))
-    change_humus = Array(dtype=float32, shape=(None, 8))
-    co2 = Array(dtype=float32, shape=(None, 8))
+    stock_tom = Array(dtype=float32, shape=(0, 8))
+    stock_woody = Array(dtype=float32, shape=(0, 8))
+    stock_acid = Array(dtype=float32, shape=(0, 8))
+    stock_water = Array(dtype=float32, shape=(0, 8))
+    stock_ethanol = Array(dtype=float32, shape=(0, 8))
+    stock_non_soluble = Array(dtype=float32, shape=(0, 8))
+    stock_humus = Array(dtype=float32, shape=(0, 8))
+    change_tom = Array(dtype=float32, shape=(0, 8))
+    change_woody = Array(dtype=float32, shape=(0, 8))
+    change_acid = Array(dtype=float32, shape=(0, 8))
+    change_water = Array(dtype=float32, shape=(0, 8))
+    change_ethanol = Array(dtype=float32, shape=(0, 8))
+    change_non_soluble = Array(dtype=float32, shape=(0, 8))
+    change_humus = Array(dtype=float32, shape=(0, 8))
+    co2 = Array(dtype=float32, shape=(0, 8))
 
     yassorunner = ModelRunner()
 
@@ -387,7 +392,7 @@ class Yasso(HasTraits):
                             editor=co2_yield_te,
                            ),
                        HGroup(
-                              ChacoPlotItem(index='timestep',
+                              ChacoPlotItem(index='p_timestep',
                                             value='ps_tom',
                                             show_label=False,
                                             x_label = 'time',
@@ -401,7 +406,7 @@ class Yasso(HasTraits):
                                             border_width=1,
                                             padding_bg_color = 'lightgray'
                                            ),
-                              ChacoPlotItem(index='timestep',
+                              ChacoPlotItem(index='p_timestep',
                                             value='ps_woody',
                                             show_label=False,
                                             x_label = 'time',
@@ -415,7 +420,7 @@ class Yasso(HasTraits):
                                             border_width=1,
                                             padding_bg_color = 'lightgray'
                                            ),
-                              ChacoPlotItem(index='timestep',
+                              ChacoPlotItem(index='p_timestep',
                                             value='ps_acid',
                                             show_label=False,
                                             x_label = 'time',
@@ -433,7 +438,7 @@ class Yasso(HasTraits):
                                             presentation_type=="chart"',
                              ),
                        HGroup(
-                              ChacoPlotItem(index='timestep',
+                              ChacoPlotItem(index='p_timestep',
                                             value='ps_woody',
                                             show_label=False,
                                             x_label = 'time',
@@ -447,7 +452,7 @@ class Yasso(HasTraits):
                                             border_width=1,
                                             padding_bg_color = 'lightgray'
                                            ),
-                              ChacoPlotItem(index='timestep',
+                              ChacoPlotItem(index='p_timestep',
                                             value='ps_ethanol',
                                             show_label=False,
                                             x_label = 'time',
@@ -461,7 +466,7 @@ class Yasso(HasTraits):
                                             border_width=1,
                                             padding_bg_color = 'lightgray'
                                            ),
-                              ChacoPlotItem(index='timestep',
+                              ChacoPlotItem(index='p_timestep',
                                             value='ps_non_soluble',
                                             show_label=False,
                                             x_label = 'time',
@@ -479,7 +484,7 @@ class Yasso(HasTraits):
                                             presentation_type=="chart"',
                              ),
                        HGroup(
-                              ChacoPlotItem(index='timestep',
+                              ChacoPlotItem(index='p_timestep',
                                             value='ps_humus',
                                             show_label=False,
                                             x_label = 'time',
@@ -544,7 +549,7 @@ class Yasso(HasTraits):
                      change_acid, change_water, change_ethanol, \
                      change_non_soluble, change_humus, co2')
     def set_plot_data(self):
-        self.timestep = self.stock_tom[:,0]
+        self.p_timestep = self.stock_tom[:,0]
         self.ps_tom = self.stock_tom[:,1]
         self.ps_woody = self.stock_woody[:,1]
         self.ps_acid = self.stock_acid[:,1]
@@ -567,24 +572,72 @@ class Yasso(HasTraits):
         self.yassorunner.run_model(self)
 
     def _load_init_event_fired(self):
+        errmsg = 'Litter components should contain: \n'\
+                      ' mass, mass std, acid, acid std, water, water std,\n'\
+                      ' ethanol, ethanol std, non soluble, non soluble std,'\
+                      '\n humus, humus std, size class'
         filename = open_file()
         if filename != '':
-            self.__load_litter_components(filename, self.initial_litter)
+            try:
+                f=open(filename)
+                self.initial_litter = []
+                for line in f:
+                    ok, obj = self.__load_litter_object(line, errmsg)
+                    if not ok:
+                        break
+                    self.initial_litter.append(obj)
+                f.close()
+            except:
+                pass
 
     def _load_constant_litter_event_fired(self):
+        errmsg = 'Litter components should contain: \n'\
+                      ' mass, mass std, acid, acid std, water, water std,\n'\
+                      ' ethanol, ethanol std, non soluble, non soluble std,'\
+                      '\n humus, humus std, size class'
         filename = open_file()
+        print 'constant load'
         if filename != '':
-            self.__load_litter_components(filename, self.constant_litter)
+            try:
+                f=open(filename)
+                self.constant_litter = []
+                for line in f:
+                    print 'loading'
+                    ok, obj = self.__load_litter_object(line, errmsg)
+                    if not ok:
+                        break
+                    print obj
+                    self.constant_litter.append(obj)
+                    print self.constant_litter
+                f.close()
+            except:
+                pass
 
     def _load_timed_litter_event_fired(self):
+        errmsg = 'Timed litter components should contain: \n'\
+                      ' time, mass, mass std, acid, acid std, water, '\
+                      'water std,\n'\
+                      ' ethanol, ethanol std, non soluble, non soluble std,'\
+                      '\n humus, humus std, size class'
         filename = open_file()
         if filename != '':
-            self.__load_litter_components(filename, self.timeseries_litter,
-                                          hastime=True)
+            try:
+                f=open(filename)
+                self.timeseries_litter = []
+                for line in f:
+                    ok, obj = self.__load_litter_object(line, errmsg, True)
+                    if not ok:
+                        break
+                    self.timeseries_litter.append(obj)
+                f.close()
+            except:
+                pass
 
     def _load_yearly_climate_event_fired(self):
         filename = open_file()
-        if filename != '':
+        errmsg = 'Yearly climate should contain: year, mean temperature,\n'\
+                 'annual rainfall and temperature variation amplitude'
+        if filename!='':
             try:
                 f=open(filename)
                 self.yearly_climate = []
@@ -593,15 +646,21 @@ class Yasso(HasTraits):
                     if len(data)==4:
                         obj = YearlyClimate(year=int(data[0]),
                                   mean_temperature=float(data[1]),
-                                  variation_amplitude=float(data[2]),
-                                  annual_rainfall=float(data[3]))
+                                  annual_rainfall=float(data[2]),
+                                  variation_amplitude=float(data[3])),
                         self.yearly_climate.append(obj)
+                    elif line[0]!='#' and len(line)>0:
+                        error(errmsg, title='error reading data',
+                              buttons=['ok'])
+                        break
                 f.close()
             except:
                 pass
 
     def _load_monthly_climate_event_fired(self):
         filename = open_file()
+        errmsg = 'Monthly data should contain: month,\n'\
+                 'temperature and rainfall'
         if filename != '':
             try:
                 f=open(filename)
@@ -613,6 +672,10 @@ class Yasso(HasTraits):
                                   temperature=float(data[1]),
                                   rainfall=float(data[2]))
                         self.monthly_climate.append(obj)
+                    elif line[0]!='#' and len(line)>0:
+                        error(errmsg, title='Error reading data',
+                              buttons=['ok'])
+                        break
                 f.close()
             except:
                 pass
@@ -675,49 +738,52 @@ class Yasso(HasTraits):
                 f.write(resrow+'\n')
             f.close()
 
-    def __load_litter_components(filename, target, hastime=False):
-        try:
-            f=open(filename)
-            target = []
-            for line in f:
-                obj = None
-                data = line.split()
-                if hastime:
-                    if len(data)==14:
-                        obj = LitterComponent(time=data[0],
-                                mass=float(data[1]),
-                                mass_std=float(data[2]),
-                                acid=float(data[3]),
-                                acid_std=float(data[4]),
-                                water=float(data[5]),
-                                water_std=float(data[6]),
-                                ethanol=float(data[7]),
-                                ethanol_std=float(data[8]),
-                                non_soluble=float(data[9]),
-                                non_soluble_std=float(data[10]),
-                                humus=float(data[11]),
-                                humus_std=float(data[12]),
-                                size_class=float(data[13]))
-                else:
-                    if len(data)==13:
-                        obj = LitterComponent(mass=float(data[0]),
-                                mass_std=float(data[1]),
-                                acid=float(data[2]),
-                                acid_std=float(data[3]),
-                                water=float(data[4]),
-                                water_std=float(data[5]),
-                                ethanol=float(data[6]),
-                                ethanol_std=float(data[7]),
-                                non_soluble=float(data[8]),
-                                non_soluble_std=float(data[9]),
-                                humus=float(data[10]),
-                                humus_std=float(data[11]),
-                                size_class=float(data[12]))
-                if obj is not None:
-                    target.append(obj)
-            f.close()
-        except:
-            pass
+    def __load_litter_object(self, line, errmsg, hastime=False):
+        obj = None
+        loaded = True
+        data = line.split()
+        if hastime:
+            if len(data)==14:
+                obj = TimedLitterComponent(time=data[0],
+                        mass=float(data[1]),
+                        mass_std=float(data[2]),
+                        acid=float(data[3]),
+                        acid_std=float(data[4]),
+                        water=float(data[5]),
+                        water_std=float(data[6]),
+                        ethanol=float(data[7]),
+                        ethanol_std=float(data[8]),
+                        non_soluble=float(data[9]),
+                        non_soluble_std=float(data[10]),
+                        humus=float(data[11]),
+                        humus_std=float(data[12]),
+                        size_class=float(data[13]))
+            elif line[0]!='#' and len(line)>0:
+                error(errmsg, title='Error reading data',
+                      buttons=['OK'])
+                loaded = False
+        else:
+            if len(data)==13:
+                print 'data'
+                obj = LitterComponent(mass=float(data[0]),
+                        mass_std=float(data[1]),
+                        acid=float(data[2]),
+                        acid_std=float(data[3]),
+                        water=float(data[4]),
+                        water_std=float(data[5]),
+                        ethanol=float(data[6]),
+                        ethanol_std=float(data[7]),
+                        non_soluble=float(data[8]),
+                        non_soluble_std=float(data[9]),
+                        humus=float(data[10]),
+                        humus_std=float(data[11]),
+                        size_class=float(data[12]))
+                print obj
+            elif line[0]!='#' and len(line)>0:
+                error(errmsg, title='Error reading data',
+                      buttons=['OK'])
+                loaded = False
+        return loaded, obj
 
     def __init_results(self):
         """
@@ -730,24 +796,24 @@ class Yasso(HasTraits):
          common format: time, mean, mode, var, skewness, kurtosis,
          95% confidence-, 95% confidence+
         """
-        self.c_stock = Array(dtype=float32, shape=(None, 9))
-        self.c_change = Array(dtype=float32, shape=(None, 9))
-        self.co2_yield = Array(dtype=float32, shape=(None, 3))
-        self.stock_tom = Array(dtype=float32, shape=(None, 8))
-        self.stock_woody = Array(dtype=float32, shape=(None, 8))
-        self.stock_acid = Array(dtype=float32, shape=(None, 8))
-        self.stock_water = Array(dtype=float32, shape=(None, 8))
-        self.stock_ethanol = Array(dtype=float32, shape=(None, 8))
-        self.stock_non_soluble = Array(dtype=float32, shape=(None, 8))
-        self.stock_humus = Array(dtype=float32, shape=(None, 8))
-        self.change_tom = Array(dtype=float32, shape=(None, 8))
-        self.change_woody = Array(dtype=float32, shape=(None, 8))
-        self.change_acid = Array(dtype=float32, shape=(None, 8))
-        self.change_water = Array(dtype=float32, shape=(None, 8))
-        self.change_ethanol = Array(dtype=float32, shape=(None, 8))
-        self.change_non_soluble = Array(dtype=float32, shape=(None, 8))
-        self.change_humus = Array(dtype=float32, shape=(None, 8))
-        self.co2 = Array(dtype=float32, shape=(None, 8))
+        self.c_stock = empty(dtype=float32, shape=(0, 9))
+        self.c_change = empty(dtype=float32, shape=(0, 9))
+        self.co2_yield = empty(dtype=float32, shape=(0, 3))
+        self.stock_tom = empty(dtype=float32, shape=(0, 8))
+        self.stock_woody = empty(dtype=float32, shape=(0, 8))
+        self.stock_acid = empty(dtype=float32, shape=(0, 8))
+        self.stock_water = empty(dtype=float32, shape=(0, 8))
+        self.stock_ethanol = empty(dtype=float32, shape=(0, 8))
+        self.stock_non_soluble = empty(dtype=float32, shape=(0, 8))
+        self.stock_humus = empty(dtype=float32, shape=(0, 8))
+        self.change_tom = empty(dtype=float32, shape=(0, 8))
+        self.change_woody = empty(dtype=float32, shape=(0, 8))
+        self.change_acid = empty(dtype=float32, shape=(0, 8))
+        self.change_water = empty(dtype=float32, shape=(0, 8))
+        self.change_ethanol = empty(dtype=float32, shape=(0, 8))
+        self.change_non_soluble = empty(dtype=float32, shape=(0, 8))
+        self.change_humus = empty(dtype=float32, shape=(0, 8))
+        self.co2 = empty(dtype=float32, shape=(0, 8))
 
 yasso = Yasso()
 

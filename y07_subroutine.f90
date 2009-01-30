@@ -141,8 +141,8 @@ CONTAINS
   SUBROUTINE matrixexp(a,r,b)
     !returns approximated matrix exponential
     !Taylor (Bade to be written) approximation..another algorithm perhaps?
-    REAL,DIMENSION(r,r),INTENT(IN) :: a
     INTEGER,INTENT(IN) :: r
+    REAL,DIMENSION(r,r),INTENT(IN) :: a
     REAL,DIMENSION(r,r),INTENT(OUT) :: b
     REAL,DIMENSION(r,r) :: c,d
     REAL :: p

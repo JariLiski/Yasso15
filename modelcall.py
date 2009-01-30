@@ -10,6 +10,8 @@ from scipy.stats import stats
 from enthought.pyface.api import ProgressDialog
 from y07 import yasso
 
+import pdb
+
 PARAMFILE = 'mc5_y07_a01.dat'
 # the order in which data comes in (defined by list index) and in which
 # it should passed to the model (defined in the tuple)
@@ -46,7 +48,7 @@ class ModelRunner(object):
                                   max=samplesize, show_time=True,
                                   can_cancel=True)
         progress.open()
-        timesteps = self.__calculate_timesteps()
+        timesteps = self._calculate_timesteps()
         for j in range(samplesize):
             (cont, skip) = progress.update(j)
             if not cont or skip:
@@ -54,12 +56,12 @@ class ModelRunner(object):
             self.ml_run = True
             self.draw = True
             for k in range(timesteps):
-                climate = self.__construct_climate(k)
+                climate = self._construct_climate(k)
                 self.ts_initial = 0.0
                 self.ts_infall = 0.0
                 self.__create_input(k)
                 for sizeclass in self.initial:
-                    endstate = self.__predict(sizeclass,
+                    endstate = self._predict(sizeclass,
                                               self.initial[sizeclass],
                                               self.litter[sizeclass],
                                               climate)
@@ -69,9 +71,9 @@ class ModelRunner(object):
                     # we draw the random sample, and on the next runs use it
                     self.draw = False
                 self.ml_run = False
-                self.__calculate_c_change(j, k)
-                self.__calculate_co2_yield(j, k)
-        self.__fill_results()
+                self._calculate_c_change(j, k)
+                self._calculate_co2_yield(j, k)
+        self._fill_moment_results()
         progress.update(samplesize)
 
     def __add_c_stock_result(self, sample, timestep, sc, endstate):
@@ -102,7 +104,7 @@ class ModelRunner(object):
             # if there are, add the new results to the existing ones
             cs[target[0],2:] = numpy.add(cs[target[0],2:], res[0,2:])
 
-    def __calculate_c_change(self, s, ts):
+    def _calculate_c_change(self, s, ts):
         """
         The change of mass per component during the timestep
 
@@ -121,7 +123,7 @@ class ModelRunner(object):
             cc = numpy.append(cc, stepinf, axis=0)
             cc[-1, 2:] = cs[nowtarget, 2:] - cs[prevtarget, 2:]
 
-    def __calculate_co2_yield(self, s, ts):
+    def _calculate_co2_yield(self, s, ts):
         """
         The yield of CO2 during the timestep
 
@@ -136,16 +138,16 @@ class ModelRunner(object):
         atend = cs[s, ts, 3]
         cc[-1, 2] = self.ts_initial + self.ts_infall - atend
 
-    def __calculate_timesteps(self):
+    def _calculate_timesteps(self):
         return int(math.ceil(self.md.simulation_length / self.md.timestep))
 
-    def __construct_climate(self, timestep):
+    def _construct_climate(self, timestep):
         """
         From the different ui options, creates a unified climate description
         (type, start month, duration, temperature, rainfall, amplitude)
         """
         cl = {}
-        now = self.__get_now(timestep).month
+        now = self._get_now(timestep).month
         cl['start month'] = now.month
         if self.md.duration_unit == 'month':
             dur = self.md.timestep / 12.
@@ -157,12 +159,12 @@ class ModelRunner(object):
             cl['temp'] = self.md.constant_climate.mean_temperature
             cl['amplitude'] = self.md.constant_climate.variation_amplitude
         elif self.md.climate_mode == 'monthly':
-            cl = self.__construct_monthly_climate(cl, now.month, dur / 12.)
+            cl = self._construct_monthly_climate(cl, now.month, dur / 12.)
         elif self.md.climate_mode == 'yearly':
-            cl = self.__construct_yearly_climate(cl, now.month, now.year, dur)
+            cl = self._construct_yearly_climate(cl, now.month, now.year, dur)
         return cl
 
-    def __construct_monthly_climate(self, cl, sm, dur):
+    def _construct_monthly_climate(self, cl, sm, dur):
         """
         Summarizes the monthly climate data into rain, temp and amplitude
         given the start month and duration
@@ -194,7 +196,7 @@ class ModelRunner(object):
         cl['amplitude'] = (maxtemp - mintemp) / 2.0
         return cl
 
-    def __construct_yearly_climate(self, cl, sm, sy, dur):
+    def _construct_yearly_climate(self, cl, sm, sy, dur):
         """
         Summarizes the yearly climate data into rain, temp and amplitude
         given the start month, start year and duration
@@ -235,16 +237,16 @@ class ModelRunner(object):
         """
         if timestep == 0:
             if self.md.initial_mode == 'non zero':
-                self.__define_components(self.md.initial_litter, self.initial)
+                self._define_components(self.md.initial_litter, self.initial)
         if self.md.litter_mode == 'constant':
-            self.__define_components(self.md.constant_litter, self.litter)
+            self._define_components(self.md.constant_litter, self.litter)
         else:
-            timeind = self.__map_timestep2timeind(timestep)
-            self.__define_components(self.md.timeseries_litter, self.litter,
+            timeind = self._map_timestep2timeind(timestep)
+            self._define_components(self.md.timeseries_litter, self.litter,
                                      ind=timeind)
-        self.__fill_input()
+        self._fill_input()
 
-    def __define_components(self, fromme, tome, ind=None):
+    def _define_components(self, fromme, tome, ind=None):
         """
         Adds the component specification to list to be passed to the model
 
@@ -299,7 +301,7 @@ class ModelRunner(object):
             tome[sc] = [m / div, m_std, a / div, a_std, w / div, w_std,
                         e / div, e_std, n / div, n_std, h / div, h_std]
 
-    def __draw_from_distr(self, values, pairs, ml):
+    def _draw_from_distr(self, values, pairs, ml):
         """
         Draw a sample from the normal distribution based on the mean and std
         pairs
@@ -332,7 +334,7 @@ class ModelRunner(object):
         sample[pairs[waterind][1]] = remainingmass
         return sample
 
-    def __fill_input(self):
+    def _fill_input(self):
         """
         Makes sure that both the initial state and litter input have the same
         size classes
@@ -346,7 +348,7 @@ class ModelRunner(object):
                 self.initial[sc] = [0., 0., 0., 0., 0., 0.,
                                     0., 0., 0., 0., 0., 0.]
 
-    def __fill_moment_results(self):
+    def _fill_moment_results(self):
         """
         Fills the result arrays used for storing the calculated moments
          common format: time, mean, mode, var, skewness, kurtosis,
@@ -380,11 +382,12 @@ class ModelRunner(object):
                 skew = stats.skew(dataarr[ind[0], dataind])
                 kurtosis = stats.kurtosis(dataarr[ind[0], dataind])
                 sd2 = 2 * math.sqrt(var)
-                res = [timestep, mean, mode, var, skew, kurtosis,
-                       mean - sd2, mean + sd2]
+                res = [[timestep, mean, mode, var, skew, kurtosis,
+                       mean - sd2, mean + sd2]]
                 resarr = numpy.append(resarr, res, axis=0)
 
-    def __get_now(self, timestep):
+    def _get_now(self, timestep):
+        pdb.set_trace()
         s = self.md.start_month.split('/')
         start = date(int(s[1]), int(s[0]), 1)
         if self.md.duration_unit == 'month':
@@ -393,7 +396,7 @@ class ModelRunner(object):
             now = start + relativedelta(years=timestep)
         return now
 
-    def __map_timestep2timeind(self, timestep):
+    def _map_timestep2timeind(self, timestep):
         """
         Convert the timestep index to the nearest time defined in the litter
         timeseries array
@@ -401,7 +404,7 @@ class ModelRunner(object):
         timestep -- ordinal number of the simulation run timestep
         """
         if timestep not in self.timemap:
-            now = self.__get_now(timestep)
+            now = self._get_now(timestep)
             for i in range(len(self.md.timeseries_litter)):
                 ltime = self.md.timeseries_litter[i].time.split('/')
                 if len(ltime) == 1:
@@ -424,7 +427,7 @@ class ModelRunner(object):
                     self.timemap[timestep].append(i)
         return self.timemap[timestep]
 
-    def __predict(self, sc, initial, litter, climate):
+    def _predict(self, sc, initial, litter, climate):
         """
         processes the input data before calling the model and then
         runs the model
@@ -447,19 +450,19 @@ class ModelRunner(object):
             self.param = self._model_param[pind,:]
         # and mean values for the initial state and input
         if self.mlrun:
-            initial = self.__draw_from_distr(initial, VALUESPEC, True)
-            self.infall[sc] = self.__draw_from_distr(litter, VALUESPEC, True)
+            initial = self._draw_from_distr(initial, VALUESPEC, True)
+            self.infall[sc] = self._draw_from_distr(litter, VALUESPEC, True)
         elif self.draw:
-            initial = self.__draw_from_distr(initial, VALUESPEC, False)
-            self.infall[sc] = self.__draw_from_distr(litter, VALUESPEC, False)
+            initial = self._draw_from_distr(initial, VALUESPEC, False)
+            self.infall[sc] = self._draw_from_distr(litter, VALUESPEC, False)
         else:
             # initial values drawn randomly only for the "draw" run
             # i.e. for the first run after maximum likelihood run
-            init = self.__draw_from_distr(initial, VALUESPEC, True)
+            init = self._draw_from_distr(initial, VALUESPEC, True)
             if self.md.litter_model == 'timeseries':
                 # if litter input is a timeseries, drawn at each step
                 # for constant input the values drawn at the beginning used
-                self.infall[sc] = self.__draw_from_distr(litter, VALUESPEC,
+                self.infall[sc] = self._draw_from_distr(litter, VALUESPEC,
                                                          False)
         # climate
         cl = [climate['temp'], climate['rain'], climate['amplitude']]
