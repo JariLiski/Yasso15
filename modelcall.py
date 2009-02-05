@@ -4,19 +4,19 @@
 import numpy
 import math
 from datetime import date
+from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 import random
 from scipy.stats import stats
 from enthought.pyface.api import ProgressDialog
 from y07 import yasso
 
-import pdb
-
-PARAMFILE = 'mc5_y07_a01.dat'
+PARAMFILE = 'yasso_param.txt'
 # the order in which data comes in (defined by list index) and in which
 # it should passed to the model (defined in the tuple)
 VALUESPEC = [('mass', None), ('acid', 0), ('water', 1), ('ethanol', 2),
              ('non_soluble', 3), ('humus', 4)]
+STARTDATE = date(2000, 1, 1)
 
 class ModelRunner(object):
     """
@@ -43,12 +43,15 @@ class ModelRunner(object):
         self.md = modeldata
         self.timemap = defaultdict(list)
         samplesize = self.md.sample_size
+        msg = "Simulating %d samples for %d timesteps" % (samplesize,
+                                                    self.md.simulation_length)
         progress = ProgressDialog(title="Simulation",
-                                  message="Simulating %d samples" % samplesize,
+                                  message=msg,
                                   max=samplesize, show_time=True,
                                   can_cancel=True)
         progress.open()
         timesteps = self._calculate_timesteps()
+        self.curr_yr_ind = 0
         for j in range(samplesize):
             (cont, skip) = progress.update(j)
             if not cont or skip:
@@ -65,18 +68,19 @@ class ModelRunner(object):
                                               self.initial[sizeclass],
                                               self.litter[sizeclass],
                                               climate)
-                self.__add_c_stock_result(j, k, endstate)
+                    self._add_c_stock_result(j, k, sizeclass, endstate)
+                    self._endstate2initial(sizeclass, endstate)
                 if not self.ml_run:
                     # first run is the maximum likelihood run, on the next
                     # we draw the random sample, and on the next runs use it
                     self.draw = False
-                self.ml_run = False
                 self._calculate_c_change(j, k)
                 self._calculate_co2_yield(j, k)
+            self.ml_run = False
         self._fill_moment_results()
         progress.update(samplesize)
 
-    def __add_c_stock_result(self, sample, timestep, sc, endstate):
+    def _add_c_stock_result(self, sample, timestep, sc, endstate):
         """
         Adds model result to the C stock
 
@@ -87,9 +91,10 @@ class ModelRunner(object):
         # if sizeclass is non-zero, all the components are added together
         # to get the mass of wood
         if sc > 0:
-            totalom, woody = sum(endstate)
+            totalom = endstate.sum()
+            woody = totalom
         else:
-            totalom = sum(endstate)
+            totalom = endstate.sum()
             woody = 0.0
         res = numpy.concatenate(([float(sample), float(timestep), totalom,
                                   woody], endstate))
@@ -99,10 +104,10 @@ class ModelRunner(object):
         criterium = (cs[:,0]==res[0,0]) & (cs[:,1]==res[0,1])
         target = numpy.where(criterium)[0]
         if len(target) == 0:
-            cs = numpy.append(cs, res, axis=0)
+            self.md.c_stock = numpy.append(cs, res, axis=0)
         else:
             # if there are, add the new results to the existing ones
-            cs[target[0],2:] = numpy.add(cs[target[0],2:], res[0,2:])
+            self.md.c_stock[target[0],2:] = numpy.add(cs[target[0],2:], res[0,2:])
 
     def _calculate_c_change(self, s, ts):
         """
@@ -117,11 +122,11 @@ class ModelRunner(object):
         nowtarget = numpy.where(criterium)[0]
         criterium = (cs[:,0]==s) & (cs[:,1]==ts-1)
         prevtarget = numpy.where(criterium)[0]
-        if len(target) > 0:
+        if len(nowtarget) > 0 and len(prevtarget)>0:
             stepinf = numpy.array([[s, ts, 0., 0., 0., 0., 0., 0., 0.]],
                                   dtype=numpy.float32)
-            cc = numpy.append(cc, stepinf, axis=0)
-            cc[-1, 2:] = cs[nowtarget, 2:] - cs[prevtarget, 2:]
+            self.md.c_change = numpy.append(cc, stepinf, axis=0)
+            self.md.c_change[-1, 2:] = cs[nowtarget, 2:] - cs[prevtarget, 2:]
 
     def _calculate_co2_yield(self, s, ts):
         """
@@ -133,13 +138,17 @@ class ModelRunner(object):
         cs = self.md.c_stock
         cy = self.md.co2_yield
         stepinf = numpy.array([[s, ts, 0.]], dtype=numpy.float32)
-        cy = numpy.append(cc, stepinf, axis=0)
+        self.md.co2_yield = numpy.append(cy, stepinf, axis=0)
         # total organic matter at index 3
-        atend = cs[s, ts, 3]
-        cc[-1, 2] = self.ts_initial + self.ts_infall - atend
+        criterium = (cs[:,0]==s) & (cs[:,1]==ts)
+        rowind = numpy.where(criterium)[0]
+        atend = cs[rowind[0], 3]
+        self.md.co2_yield[-1, 2] = self.ts_initial + self.ts_infall - atend
 
     def _calculate_timesteps(self):
-        return int(math.ceil(self.md.simulation_length / self.md.timestep))
+        sl = self.md.simulation_length
+        tl = self.md.timestep_length
+        return int(math.ceil(sl/tl))
 
     def _construct_climate(self, timestep):
         """
@@ -147,21 +156,21 @@ class ModelRunner(object):
         (type, start month, duration, temperature, rainfall, amplitude)
         """
         cl = {}
-        now = self._get_now(timestep).month
+        now = self._get_now(timestep)
         cl['start month'] = now.month
         if self.md.duration_unit == 'month':
-            dur = self.md.timestep / 12.
+            yeardur = self.md.timestep_length / 12.
         elif self.md.duration_unit == 'year':
-            dur = self.md.timestep
-        cl['duration'] = dur
-        if self.md.climate_mode == 'constant':
+            yeardur = self.md.timestep_length
+        cl['duration'] = yeardur
+        if self.md.climate_mode == 'constant yearly':
             cl['rain'] = self.md.constant_climate.annual_rainfall
             cl['temp'] = self.md.constant_climate.mean_temperature
             cl['amplitude'] = self.md.constant_climate.variation_amplitude
         elif self.md.climate_mode == 'monthly':
-            cl = self._construct_monthly_climate(cl, now.month, dur / 12.)
+            cl = self._construct_monthly_climate(cl, now.month, yeardur * 12.)
         elif self.md.climate_mode == 'yearly':
-            cl = self._construct_yearly_climate(cl, now.month, now.year, dur)
+            cl = self._construct_yearly_climate(cl, now.month, now.year,yeardur)
         return cl
 
     def _construct_monthly_climate(self, cl, sm, dur):
@@ -176,7 +185,7 @@ class ModelRunner(object):
         if dur >= 12:
             months = range(0,12)
         else:
-            em = sm + int(dur * 12)
+            em = sm + int(dur)
             if em > 12:
                 overflow = em - 12
                 months = range(sm,12) + range(0,overflow)
@@ -184,12 +193,13 @@ class ModelRunner(object):
                 months = range(sm-1, em-1)
         rain = 0.0
         temp = 0.0
-        maxtemp, mintemp = 0.0
+        maxtemp = 0.0
+        mintemp = 0.0
         for m in months:
             mtemp = self.md.monthly_climate[m].temperature
             temp += mtemp
             if mtemp < mintemp: mintemp = mtemp
-            if mtepm > maxtemp: maxtemp = mtemp
+            if mtemp > maxtemp: maxtemp = mtemp
             rain = self.md.monthly_climate[m].rainfall
         cl['rain'] = rain / len(months)
         cl['temp'] = temp / len(months)
@@ -199,13 +209,15 @@ class ModelRunner(object):
     def _construct_yearly_climate(self, cl, sm, sy, dur):
         """
         Summarizes the yearly climate data into rain, temp and amplitude
-        given the start month, start year and duration
+        given the start month, start year and duration. Rotates the yearly
+        climate definition round if shorter than the simulation length.
 
         cl -- climate dictionary
         sm -- start month
         sy -- start year
         dur -- timestep duration in years
         """
+        weight = 1.0
         firstyearweight = (13. - sm) / 12.
         lastyearweight = 1.0 - firstyearweight
         rain = 0.0
@@ -213,17 +225,24 @@ class ModelRunner(object):
         ampl = 0.0
         years = range(sy, sy + int(dur))
         for ind in range(len(years)):
-            for cy in self.md.yearly_climate:
-                if cy.year == years[ind]:
-                    if ind == 0:
-                        weight = firstyearweight
-                    elif ind == len(years) - 1:
-                        weight = lastyearweight
-                    else:
-                        weight = 1.0
-                    temp += weight * cy.mean_temperature
-                    rain += weight * cy.annual_rainfall
-                    ampl += weight * cy.variation_amplitude
+            if self.curr_yr_ind > len(self.md.yearly_climate) - 1:
+                self.curr_yr_ind = 0
+            cy = self.md.yearly_climate[self.curr_yr_ind]
+            if ind == 0:
+                weight = firstyearweight
+            elif ind == len(years) - 1:
+                weight = lastyearweight
+            else:
+                weight = 1.0
+            temp += weight * cy.mean_temperature
+            rain += weight * cy.annual_rainfall
+            ampl += weight * cy.variation_amplitude
+            self.curr_yr_ind +=1
+        # backs one year back, if the last weight was less than 1
+        if weight < 1.0:
+            self.curr_yr_ind -= 1
+            if self.curr_yr_ind < 0:
+                self.curr_yr_ind = len(self.md.yearly_climate) - 1
         cl['rain'] = rain / len(years)
         cl['temp'] = temp / len(years)
         cl['amplitude'] = ampl / len(years)
@@ -235,41 +254,42 @@ class ModelRunner(object):
         initial state and input. Matches the woody inital states and
         inputs by size class.
         """
+        self.litter = {}
         if timestep == 0:
+            self.initial = {}
             if self.md.initial_mode == 'non zero':
                 self._define_components(self.md.initial_litter, self.initial)
-        if self.md.litter_mode == 'constant':
+        if self.md.litter_mode == 'constant yearly':
             self._define_components(self.md.constant_litter, self.litter)
         else:
             timeind = self._map_timestep2timeind(timestep)
-            self._define_components(self.md.timeseries_litter, self.litter,
-                                     ind=timeind)
+            if self.md.litter_mode=='monthly':
+                infdata = self.md.monthly_litter
+            elif self.md.litter_mode=='yearly':
+                infdata = self.md.yearly_litter
+            self._define_components(infdata, self.litter, tsind=timeind)
         self._fill_input()
 
-    def _define_components(self, fromme, tome, ind=None):
+    def _define_components(self, fromme, tome, tsind=None):
         """
         Adds the component specification to list to be passed to the model
 
         fromme -- the component specification from the ui
         tome -- the list on its way to the model
-        ind -- indices if the components are taken from a timeseries
+        tsind -- indices if the components are taken from a timeseries
         """
-        tome = {}
         sizeclasses = defaultdict(list)
-        if ind is None:
+        if tsind is None:
             for i in range(len(fromme)):
                 sizeclasses[fromme[i].size_class].append(i)
         else:
-            for i in ind:
-                sizeclasses[fromme[i].litter.sizeclass].append(i)
+            for i in tsind:
+                sizeclasses[fromme[i].size_class].append(i)
         for sc in sizeclasses:
             m, m_std, a, a_std, w, w_std = (0., 0., 0., 0., 0., 0.)
-            e, e_std, n, w_std, h, h_std = (0., 0., 0., 0., 0., 0.)
+            e, e_std, n, n_std, h, h_std = (0., 0., 0., 0., 0., 0.)
             for ind in sizeclasses[sc]:
-                if ind is None:
-                    litter = fromme[ind]
-                else:
-                    litter = fromme[ind].litter
+                litter = fromme[ind]
                 mass = litter.mass
                 m += mass
                 a += mass * litter.acid
@@ -294,8 +314,8 @@ class ModelRunner(object):
             n_std = n_std / m
             h_std = h_std / m
             if self.md.duration_unit == 'month' and \
-               self.litter_input_resolution == 'year':
-                   div = self.md.timestep/12.
+               self.md.litter_mode == 'yearly':
+                div = self.md.timestep_length / 12.
             else:
                 div = 1.
             tome[sc] = [m / div, m_std, a / div, a_std, w / div, w_std,
@@ -316,8 +336,8 @@ class ModelRunner(object):
         sample = [None for i in range(len(pairs)-1)]
         for i in range(len(pairs)):
             vs = pairs[i]
-            mean = values[i]
-            std = values[i+1]
+            mean = values[2*i]
+            std = values[2*i+1]
             if std > 0.0 and not ml:
                 samplemean = random.gauss(mean, std)
             else:
@@ -333,6 +353,20 @@ class ModelRunner(object):
                 waterind = i
         sample[pairs[waterind][1]] = remainingmass
         return sample
+
+    def _endstate2initial(self, sizeclass, endstate):
+        """
+        Transfers the endstate masses to the initial state description of
+        masses and percentages with standard deviations. Std set to zero.
+        """
+        mass = endstate.sum()
+        acid = endstate[0] / mass
+        water = endstate[1] / mass
+        ethanol = endstate[2] / mass
+        nonsoluble = endstate[3] / mass
+        humus = endstate[4] / mass
+        self.initial[sizeclass] = [mass, 0., acid, 0., water, 0., ethanol, 0.,
+                                   nonsoluble, 0., humus, 0.]
 
     def _fill_input(self):
         """
@@ -355,22 +389,22 @@ class ModelRunner(object):
                         95% confidence lower limit, 95% upper limit
         """
         md = self.md
-        toprocess = [(md.stock_tom, md.c_stock, 2),
-                     (md.stock_woody, md.c_stock, 3),
-                     (md.stock_acid, md.c_stock, 4),
-                     (md.stock_water, md.c_stock, 5),
-                     (md.stock_ethanol, md.c_stock, 6),
-                     (md.stock_non_soluble, md.c_stock, 7),
-                     (md.stock_humus, md.c_stock, 8),
-                     (md.change_tom, md.c_change, 2),
-                     (md.change_woody, md.c_change, 3),
-                     (md.change_acid, md.c_change, 4),
-                     (md.change_water, md.c_change, 5),
-                     (md.change_ethanol, md.c_change, 6),
-                     (md.change_non_soluble, md.c_change, 7),
-                     (md.change_humus, md.c_change, 8),
-                     (md.co2, md.co2_yield, 2)]
-        for (resarr, dataarr, dataind) in toprocess:
+        toprocess = [('stock_tom', md.c_stock, 2),
+                     ('stock_woody', md.c_stock, 3),
+                     ('stock_acid', md.c_stock, 4),
+                     ('stock_water', md.c_stock, 5),
+                     ('stock_ethanol',  md.c_stock, 6),
+                     ('stock_non_soluble', md.c_stock, 7),
+                     ('stock_humus', md.c_stock, 8),
+                     ('change_tom', md.c_change, 2),
+                     ('change_woody', md.c_change, 3),
+                     ('change_acid', md.c_change, 4),
+                     ('change_water', md.c_change, 5),
+                     ('change_ethanol', md.c_change, 6),
+                     ('change_non_soluble', md.c_change, 7),
+                     ('change_humus', md.c_change, 8),
+                     ('co2', md.co2_yield, 2)]
+        for (resto, dataarr, dataind) in toprocess:
             # filter time steps
             ts = numpy.unique(dataarr[:,1])
             # extract data for the timestep
@@ -382,18 +416,65 @@ class ModelRunner(object):
                 skew = stats.skew(dataarr[ind[0], dataind])
                 kurtosis = stats.kurtosis(dataarr[ind[0], dataind])
                 sd2 = 2 * math.sqrt(var)
-                res = [[timestep, mean, mode, var, skew, kurtosis,
+                res = [[timestep, mean, mode[0], var, skew, kurtosis,
                        mean - sd2, mean + sd2]]
-                resarr = numpy.append(resarr, res, axis=0)
+                if resto=='stock_tom':
+                    self.md.stock_tom = numpy.append(self.md.stock_tom,
+                                                     res, axis=0)
+                elif resto=='stock_woody':
+                    self.md.stock_woody = numpy.append(self.md.stock_woody,
+                                                       res, axis=0)
+                elif resto=='stock_acid':
+                    self.md.stock_acid = numpy.append(self.md.stock_acid,
+                                                      res, axis=0)
+                elif resto=='stock_water':
+                    self.md.stock_water = numpy.append(self.md.stock_water,
+                                                       res, axis=0)
+                elif resto=='stock_ethanol':
+                    self.md.stock_ethanol = numpy.append(self.md.stock_ethanol,
+                                                         res, axis=0)
+                elif resto=='stock_non_soluble':
+                    self.md.stock_non_soluble= numpy.append(
+                                        self.md.stock_non_soluble, res, axis=0)
+                elif resto=='stock_humus':
+                    self.md.stock_humus = numpy.append(self.md.stock_humus,
+                                                       res, axis=0)
+                elif resto=='change_tom':
+                    self.md.change_tom = numpy.append(self.md.change_tom,
+                                                      res, axis=0)
+                elif resto=='change_woody':
+                    self.md.change_woody = numpy.append(self.md.change_woody,
+                                                        res, axis=0)
+                elif resto=='change_acid':
+                    self.md.change_acid = numpy.append(self.md.change_acid,
+                                                       res, axis=0)
+                elif resto=='change_water':
+                    self.md.change_water = numpy.append(self.md.change_water,
+                                                        res, axis=0)
+                elif resto=='change_ethanol':
+                    self.md.change_ethanol = numpy.append(
+                                            self.md.change_ethanol, res, axis=0)
+                elif resto=='change_non_soluble':
+                    self.md.change_non_soluble=numpy.append(
+                                        self.md.change_non_soluble, res, axis=0)
+                elif resto=='change_humus':
+                    self.md.change_humus = numpy.append(self.md.change_humus,
+                                                        res, axis=0)
+                elif resto=='co2':
+                    self.md.co2 = numpy.append(self.md.co2, res, axis=0)
+
 
     def _get_now(self, timestep):
-        pdb.set_trace()
-        s = self.md.start_month.split('/')
-        start = date(int(s[1]), int(s[0]), 1)
+        """
+        Uses a fixed simulation start date for calculating the month
+        for each timestep
+        """
+        rd = relativedelta
+        start = STARTDATE
         if self.md.duration_unit == 'month':
-            now = start + relativedelta(months=timestep)
+            now = start + rd(months=timestep*self.md.timestep_length)
         elif self.md.duration_unit == 'year':
-            now = start + relativedelta(years=timestep)
+            now = start + rd(years=timestep*self.md.timestep_length)
         return now
 
     def _map_timestep2timeind(self, timestep):
@@ -405,26 +486,27 @@ class ModelRunner(object):
         """
         if timestep not in self.timemap:
             now = self._get_now(timestep)
-            for i in range(len(self.md.timeseries_litter)):
-                ltime = self.md.timeseries_litter[i].time.split('/')
-                if len(ltime) == 1:
-                    lmonth = None
-                    lyear = int(ltime[0])
-                    self.litter_input_resolution = 'year'
-                else:
-                    lmonth = int(ltime[0])
-                    lyear = int(ltime[1])
-                    self.litter_input_resolution = 'month'
-                if self.md.duration_unit == 'month' and now.year == lyear:
-                    if lmonth is not None:
-                        if now.month == lmonth:
-                            self.timemap[timestep].append(i)
-                        # NB! what about else?
-                    else:
-                        self.litter_input_resolution = 'year'
-                        self.timemap[timestep].append(i)
-                elif self.md.duration_unit == 'year' and now.year == lyear:
-                    self.timemap[timestep].append(i)
+            if self.md.duration_unit=='month':
+                dur = relativedelta(months=self.md.timestep_length)
+            elif self.md.duration_unit=='year':
+                dur = relativedelta(years=self.md.timestep_length)
+            end = now + dur - relativedelta(days=1)
+            if self.md.litter_mode=='monthly':
+                inputdur = relativedelta(months=1)
+                inputdate = STARTDATE
+                for ind in range(len(self.md.monthly_litter)):
+                    if inputdate>=now and inputdate<=end:
+                        self.timemap[timestep].append(ind)
+                    inputdate += inputdur
+            elif self.md.litter_mode=='yearly':
+                inputdur = relativedelta(years=1)
+                inputdate = STARTDATE
+                for ind in range(len(self.md.yearly_litter)):
+                    if inputdate>=now and inputdate<=end:
+                        self.timemap[timestep].append(ind)
+                    inputdate += inputdur
+        if timestep not in self.timemap:
+            self.timemap[timestep] = []
         return self.timemap[timestep]
 
     def _predict(self, sc, initial, litter, climate):
@@ -435,13 +517,10 @@ class ModelRunner(object):
         initial -- system state at the beginning of the timestep
         litter -- litter input for the timestep
         climate -- climate conditions for the timestep
-        firstrun -- first invocation of the model
-        mlrun -- run the model using maximum likelihood estimates
         draw -- should the values be drawn from the distribution or not
-        ltype -- litter input type: 'constant' or 'timeseries'
         """
         # model parameters
-        if self.mlrun:
+        if self.ml_run:
             self.infall = {}
             # maximum likelihood estimates for the model parameters
             self.param = self._model_param[0,:]
@@ -449,7 +528,7 @@ class ModelRunner(object):
             pind = random.randint(0, self._model_param.shape[0]-1)
             self.param = self._model_param[pind,:]
         # and mean values for the initial state and input
-        if self.mlrun:
+        if self.ml_run:
             initial = self._draw_from_distr(initial, VALUESPEC, True)
             self.infall[sc] = self._draw_from_distr(litter, VALUESPEC, True)
         elif self.draw:
@@ -458,16 +537,33 @@ class ModelRunner(object):
         else:
             # initial values drawn randomly only for the "draw" run
             # i.e. for the first run after maximum likelihood run
-            init = self._draw_from_distr(initial, VALUESPEC, True)
-            if self.md.litter_model == 'timeseries':
+            initial = self._draw_from_distr(initial, VALUESPEC, True)
+            if self.md.litter_mode!='constant yearly':
                 # if litter input is a timeseries, drawn at each step
                 # for constant input the values drawn at the beginning used
                 self.infall[sc] = self._draw_from_distr(litter, VALUESPEC,
                                                          False)
         # climate
-        cl = [climate['temp'], climate['rain'], climate['amplitude']]
-        endstate = yasso.mod5c(self.param, self.timestep, initial,
-                               self.infall[sc], cl, sc)
+        na = numpy.array
+        f32 = numpy.float64
+        par = na(self.param, dtype=f32)
+        dur = climate['duration']
+        init = na(initial, dtype=f32)
+        # convert input to yearly input in all cases
+        if self.md.litter_mode=='constant yearly':
+            inf = na(self.infall[sc], dtype=f32)
+        else:
+            inf = na(self.infall[sc], dtype=f32) / dur
+        cl = na([climate['temp'], climate['rain'], climate['amplitude']],
+                dtype=f32)
+        endstate = yasso.mod5c(par, dur, cl, init, inf, sc)
+        print "*****************"
+        print "par:", par
+        print "dur:", dur
+        print "cl:", cl
+        print "init:", init
+        print "inf, sc:", inf, sc
+        print "result:", endstate
         self.ts_initial += sum(initial)
         self.ts_infall += sum(self.infall[sc])
         return endstate
