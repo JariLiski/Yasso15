@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import y07
 import numpy
 import math
 from datetime import date
@@ -9,7 +10,6 @@ from collections import defaultdict
 import random
 from scipy.stats import stats
 from enthought.pyface.api import ProgressDialog
-from y07 import yasso
 
 PARAMFILE = 'yasso_param.txt'
 # the order in which data comes in (defined by list index) and in which
@@ -556,7 +556,7 @@ class ModelRunner(object):
             inf = na(self.infall[sc], dtype=f32) / dur
         cl = na([climate['temp'], climate['rain'], climate['amplitude']],
                 dtype=f32)
-        endstate = yasso.mod5c(par, dur, cl, init, inf, sc)
+        endstate = y07.yasso.mod5c(par, dur, cl, init, inf, sc)
         print "*****************"
         print "par:", par
         print "dur:", dur

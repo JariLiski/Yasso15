@@ -1,6 +1,8 @@
 MODULE yasso
+IMPLICIT NONE
 CONTAINS
   SUBROUTINE mod5c(a,t,cl,init,inf,s,z) !components separately
+  IMPLICIT NONE
     !*********************************************
     !GENERAL DESCRIPTION FOR ALL THE MEASUREMENTS
     !*********************************************
@@ -23,6 +25,7 @@ CONTAINS
     REAL :: h,tem
     REAL,DIMENSION(5) :: te
     REAL,DIMENSION(5) :: z1,z2
+    write(*,*)'beginning...'
     !temperature annual cycle approximation
     te(1)=cl(1)+4*cl(3)*(1/SQRT(2.0)-1)/pi
     te(2)=cl(1)-4*cl(3)/SQRT(2.0)/pi
@@ -59,117 +62,129 @@ CONTAINS
     DO i=1,5
       z1(i)=DOT_PRODUCT(m(:,i),init)+inf(i)
     END DO
-    CALL matrixexp(m*t,5,m2)
+    write(*,*)'before matrixexp...'
+    CALL matrixexp(m*t,5, m2)
     DO i=1,5
       z2(i)=DOT_PRODUCT(m2(:,i),z1)-inf(i)
     END DO
-    CALL inverse(m,5,mi)
+    write(*,*)'before inverse...'
+    CALL inverse(m,5, mi)
     DO i=1,5
       z1(i)=DOT_PRODUCT(mi(:,i),z2)
     END DO
     z=z1
-  END SUBROUTINE mod5c
+    write(*,*)'done...'
 
-  SUBROUTINE inverse(a,s,b)
-    !returns an inverse of matrix a (column elimination strategy)
-    !input has to be a square matrix, otherwise erroneous
-    INTEGER,INTENT(IN) :: s
-    REAL,DIMENSION(s,s),INTENT(IN)  :: a
-    REAL,DIMENSION(s,s),INTENT(OUT) :: b
-    REAL,DIMENSION(s,s) :: c
-    INTEGER :: n,m,i,j
-    n=SIZE(a(1,:))
-    m=SIZE(a(:,1))
-    IF(m/=n) THEN
-      WRITE(*,*) "No square matrix input."
-      WRITE(*,*) "Error in function: inverse"
-    ELSE
-!      ALLOCATE(b(n,n),c(n,n))
-      c=a
-      b=0.0
-      DO i=1,n !setting b a unit matrix
-        b(i,i)=1.0
-      END DO
-      DO i=1,n
-      !what if diagonal values are zeros?
-        IF(c(i,i)==0.0)THEN!case of singuar matrix, is it?
-          b(i,:)=0.0
-          c(i,:)=0.0
-          b(:,i)=0.0
-          c(:,i)=0.0
-          !        b(i,i)=1.0
-          !        c(i,i)=1.0
+  CONTAINS
+
+     SUBROUTINE matrixexp(a,r,b)
+        !returns approximated matrix exponential
+        !Taylor (Bade to be written) approximation..another algorithm perhaps?
+        INTEGER,INTENT(IN) :: r
+        REAL,DIMENSION(r,r),INTENT(IN) :: a
+        REAL,DIMENSION(r,r),INTENT(OUT) :: b
+        REAL,DIMENSION(r,r) :: c,d
+        REAL :: p,m
+        INTEGER :: i,q,j
+        write(*,*)'starting matrixexp...'
+        q=10
+        b=0.0
+        DO i=1,r
+          b(i,i)=1.0
+        END DO
+        m=2.0
+        j=1
+        write(*,*)'calling matrix2norm...'
+        CALL matrix2norm(a, p)
+        DO
+          IF(p<m)EXIT
+          m=m*2.0
+          j=j+1
+          write(6,*) p,m,j
+        END DO
+        c=a/m
+        b=b+c
+        d=c
+        DO i=2,q
+          d=MATMUL(c,d)/REAL(i)
+          b=b+d
+        END DO
+        DO i=1,j
+          b=MATMUL(b,b)
+        END DO
+        write(*,*)'done with matrixexp...'
+      END SUBROUTINE matrixexp
+
+      SUBROUTINE matrix2norm(a,b)
+        !returns matrix 2-norm with cartesian vector x, ||x|| = 1
+        !square matrix input (generalize if necessary)
+        REAL,DIMENSION(5,5),INTENT(IN) :: a
+        REAL,INTENT(OUT) :: b
+        REAL :: c
+        INTEGER :: n,i
+        write(*,*)'starting matrix2norm...'
+        n=SIZE(a(1,:))
+        b=0.0
+        DO i=1,n
+          b=b+SUM(a(:,i))**2.0
+        END DO
+        b=SQRT(b)
+        write(*,*)'done with matrix2norm...'
+        write(6,*)b
+      END SUBROUTINE matrix2norm
+
+      SUBROUTINE inverse(a,s,b)
+        !returns an inverse of matrix a (column elimination strategy)
+        !input has to be a square matrix, otherwise erroneous
+        INTEGER,INTENT(IN) :: s
+        REAL,DIMENSION(s,s),INTENT(IN)  :: a
+        REAL,DIMENSION(s,s),INTENT(OUT)  :: b
+        REAL,DIMENSION(s,s) :: c
+        INTEGER :: n,m,i,j
+        n=SIZE(a(1,:))
+        m=SIZE(a(:,1))
+        IF(m/=n) THEN
+          WRITE(*,*) "Does not compute."
+          WRITE(*,*) "No square matrix input."
+          WRITE(*,*) "Error in function: inverse"
         ELSE
-          b(i,:)=b(i,:)/c(i,i)
-          c(i,:)=c(i,:)/c(i,i)
+    !      ALLOCATE(b(n,n),c(n,n))
+          c=a
+          b=0.0
+          DO i=1,n !setting b a unit matrix
+            b(i,i)=1.0
+          END DO
+          DO i=1,n
+          !what if diagonal values are zeros?
+            IF(c(i,i)==0.0)THEN!case of singuar matrix, is it?
+              b(i,:)=0.0
+              c(i,:)=0.0
+              b(:,i)=0.0
+              c(:,i)=0.0
+              !        b(i,i)=1.0
+              !        c(i,i)=1.0
+            ELSE
+              b(i,:)=b(i,:)/c(i,i)
+              c(i,:)=c(i,:)/c(i,i)
+            END IF
+            DO j=1,i-1
+              b(j,:)=b(j,:)-b(i,:)*c(j,i)
+              c(j,:)=c(j,:)-c(i,:)*c(j,i)
+            END DO
+            DO j=i+1,n
+              b(j,:)=b(j,:)-b(i,:)*c(j,i)
+              c(j,:)=c(j,:)-c(i,:)*c(j,i)
+            END DO
+          END DO
+          IF(c(n,n)==0.0)THEN
+            b(n,:)=0.0
+            b(:,n)=0.0
+            !      b(n,n)=1.0
+          ELSE
+            b(n,:)=b(n,:)/c(n,n)
+          END IF
+        !now, b is supposed to be the requested inverse
         END IF
-        DO j=1,i-1
-          b(j,:)=b(j,:)-b(i,:)*c(j,i)
-          c(j,:)=c(j,:)-c(i,:)*c(j,i)
-        END DO
-        DO j=i+1,n
-          b(j,:)=b(j,:)-b(i,:)*c(j,i)
-          c(j,:)=c(j,:)-c(i,:)*c(j,i)
-        END DO
-      END DO
-      IF(c(n,n)==0.0)THEN
-        b(n,:)=0.0
-        b(:,n)=0.0
-        !      b(n,n)=1.0
-      ELSE
-        b(n,:)=b(n,:)/c(n,n)
-      END IF
-    END IF
-  END SUBROUTINE inverse
-
-  SUBROUTINE matrix2norm(a,s,b)
-    !returns matrix 2-norm with cartesian vector x, ||x|| = 1
-    !square matrix input (generalize if necessary)
-    INTEGER,INTENT(IN) :: s
-    REAL,DIMENSION(s,s),INTENT(IN) :: a
-    REAL,INTENT(OUT) :: b
-    REAL :: c
-    INTEGER :: n,i
-    n=SIZE(a(1,:))
-    b=0.0
-    DO i=1,n
-      b=b+SUM(a(:,i))**2.0
-    END DO
-    b=SQRT(b)
-  END SUBROUTINE matrix2norm
-
-  SUBROUTINE matrixexp(a,r,b)
-    !returns approximated matrix exponential
-    !Taylor (Bade to be written) approximation..another algorithm perhaps?
-    INTEGER,INTENT(IN) :: r
-    REAL,DIMENSION(r,r),INTENT(IN) :: a
-    REAL,DIMENSION(r,r),INTENT(OUT) :: b
-    REAL,DIMENSION(r,r) :: c,d
-    REAL :: p
-    INTEGER :: i,q,m,j
-    q=10
-    b=0.0
-    DO i=1,r
-      b(i,i)=1.0
-    END DO
-    m=2
-    j=1
-    CALL matrix2norm(a,r,p)
-    DO
-      IF(p<REAL(m))EXIT
-      m=m*2
-      j=j+1
-    END DO
-    c=a/REAL(m)
-    b=b+c
-    d=c
-    DO i=2,q
-      d=MATMUL(c,d)/REAL(i)
-      b=b+d
-    END DO
-    DO i=1,j
-      b=MATMUL(b,b)
-    END DO
-  END SUBROUTINE matrixexp
-
+      END SUBROUTINE inverse
+  END SUBROUTINE mod5c
 END MODULE yasso
