@@ -78,31 +78,35 @@ CONTAINS
   CONTAINS
 
      SUBROUTINE matrixexp(a,r,b)
+     IMPLICIT NONE
         !returns approximated matrix exponential
         !Taylor (Bade to be written) approximation..another algorithm perhaps?
         INTEGER,INTENT(IN) :: r
         REAL,DIMENSION(r,r),INTENT(IN) :: a
         REAL,DIMENSION(r,r),INTENT(OUT) :: b
         REAL,DIMENSION(r,r) :: c,d
-        REAL :: p,m
-        INTEGER :: i,q,j
+        REAL :: p
+        INTEGER :: i,q,j,normiter
         write(*,*)'starting matrixexp...'
         q=10
         b=0.0
         DO i=1,r
           b(i,i)=1.0
         END DO
-        m=2.0
+        normiter=2
         j=1
         write(*,*)'calling matrix2norm...'
         CALL matrix2norm(a, p)
+        write(*,*) 'normiter before: ', normiter
         DO
-          IF(p<m)EXIT
-          m=m*2.0
+          IF(p<REAL(normiter))THEN
+            EXIT
+          END IF
+          normiter=normiter*2
           j=j+1
-          write(6,*) p,m,j
+          write(6,*) p,normiter,j
         END DO
-        c=a/m
+        c=a/REAL(normiter)
         b=b+c
         d=c
         DO i=2,q
@@ -116,6 +120,7 @@ CONTAINS
       END SUBROUTINE matrixexp
 
       SUBROUTINE matrix2norm(a,b)
+      IMPLICIT NONE
         !returns matrix 2-norm with cartesian vector x, ||x|| = 1
         !square matrix input (generalize if necessary)
         REAL,DIMENSION(5,5),INTENT(IN) :: a
@@ -134,6 +139,7 @@ CONTAINS
       END SUBROUTINE matrix2norm
 
       SUBROUTINE inverse(a,s,b)
+      IMPLICIT NONE
         !returns an inverse of matrix a (column elimination strategy)
         !input has to be a square matrix, otherwise erroneous
         INTEGER,INTENT(IN) :: s
