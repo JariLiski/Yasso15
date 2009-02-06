@@ -95,15 +95,15 @@ litter_component_te = TableEditor(
                ObjectColumn(name='water', style='text', width=50),
                ObjectColumn(name='water_std', width=50),
                ObjectColumn(name='ethanol', style='text', width=50),
-               ObjectColumn(name='ethanol_std', width=50),
-               ObjectColumn(name='non_soluble', style='text', width=50),
-               ObjectColumn(name='non_soluble_std', width=50),
+               ObjectColumn(name='ethanol_std', width=55),
+               ObjectColumn(name='non_soluble', style='text', width=60),
+               ObjectColumn(name='non_soluble_std', width=75),
                ObjectColumn(name='humus', style='text', width=50),
                ObjectColumn(name='humus_std', width=50),
                ObjectColumn(name='size_class', width=50),
                ],
     auto_size    = False,
-    rows         = 7,
+    rows         = 5,
     auto_add     = True,
     editable     = True,
     deletable    = True,
@@ -120,15 +120,15 @@ timed_litter_component_te = TableEditor(
                ObjectColumn(name='water', style='text', width=50),
                ObjectColumn(name='water_std', width=50),
                ObjectColumn(name='ethanol', style='text', width=50),
-               ObjectColumn(name='ethanol_std', width=50),
-               ObjectColumn(name='non_soluble', style='text', width=50),
-               ObjectColumn(name='non_soluble_std', width=50),
+               ObjectColumn(name='ethanol_std', width=55),
+               ObjectColumn(name='non_soluble', style='text', width=60),
+               ObjectColumn(name='non_soluble_std', width=75),
                ObjectColumn(name='humus', style='text', width=50),
                ObjectColumn(name='humus_std', width=50),
                ObjectColumn(name='size_class', width=50),
                ],
     auto_size    = False,
-    rows         = 7,
+    rows         = 5,
     auto_add     = True,
     editable     = True,
     deletable    = True,
@@ -257,345 +257,202 @@ class Yasso(HasTraits):
 #############################################################
 
     view = View(
-                VGroup(
-                       HGroup(
-                             Item('load_all_data_event',
-                                  show_label=False,
-                                 ),
-                             spring,
-                            ),
-                       Group(
-                       HGroup(
-                              Item(name='initial_mode',
-                                   style='custom',
-                                   show_label=False,
-                                  ),
-                              spring,
-                              Item(name='load_init_event',
-                                   show_label=False,
-                                   visible_when='initial_mode=="non zero"',
-                                  ),
-                              spring,
-                             ),
-                       HGroup(
-                       Item('initial_litter',
-                            visible_when='initial_mode=="non zero"',
-                            show_label=False,
-                            editor=litter_component_te,
-                            width=700,
-                           ),
-                       spring,
-                       ),
-                       label='Initial condition',
-                       ),
-                       Group(
-                       HGroup(
-                              Item('litter_mode',
-                                   style='custom',
-                                   show_label=False,
-                                  ),
-                              spring,
-                              Item(name='load_constant_litter_event',
-                                   show_label=False,
-                                   visible_when='litter_mode=="constant yearly"',
-                                  ),
-                              Item(name='load_monthly_litter_event',
-                                   show_label=False,
-                                   visible_when='litter_mode=="monthly"',
-                                  ),
-                              Item(name='load_yearly_litter_event',
-                                   show_label=False,
-                                   visible_when='litter_mode=="yearly"',
-                                  ),
-                              spring,
-                             ),
-                       HGroup(
-                       Item('constant_litter',
-                            visible_when='litter_mode=="constant yearly"',
-                            show_label=False,
-                            editor=litter_component_te,
-                            width=750,
-                           ),
-                       Item('monthly_litter',
-                            visible_when='litter_mode=="monthly"',
-                            show_label=False,
-                            editor=timed_litter_component_te,
-                            width=750,
-                           ),
-                       Item('yearly_litter',
-                            visible_when='litter_mode=="yearly"',
-                            show_label=False,
-                            editor=timed_litter_component_te,
-                            width=750,
-                           ),
-                       spring,
-                       ),
-                       label='Litter input'
-                       ),
-                       Group(
-                       HGroup(
-                              Item('climate_mode',
-                                   style='custom',
-                                   show_label=False,
-                                  ),
-                              spring,
-                              Item(name='load_yearly_climate_event',
-                                   show_label=False,
-                                   visible_when='climate_mode=="yearly"',
-                                  ),
-                              Item(name='load_monthly_climate_event',
-                                   show_label=False,
-                                   visible_when='climate_mode=="monthly"',
-                                  ),
-                              spring,
-                             ),
-                       HGroup(
-                       Item('monthly_climate',
-                            show_label=False,
-                            visible_when='climate_mode=="monthly"',
-                            editor=monthly_climate_te,
-                            width=400,
-                            height=400,
-                           ),
-                       Item('yearly_climate',
-                            show_label=False,
-                            visible_when='climate_mode=="yearly"',
-                            editor=yearly_climate_te,
-                            width=400,
-                            height=400,
-                           ),
-                       VGroup(
-                             Item('object.constant_climate.annual_rainfall',
-                                  width=200,
-                                 ),
-                             Item('object.constant_climate.mean_temperature',
-                                  width=200,
-                                 ),
-                             Item('object.constant_climate.variation_amplitude',
-                                  width=200,
-                                 ),
-                             show_border=True,
-                             visible_when='climate_mode=="constant yearly"'
-                             ),
-                       spring,
-                       ),
-                       label='Climate'
-                       ),
-                       label='Data',
-                      ),
-                VGroup(
-                       HGroup(
-                              Item('sample_size',
-                                   width=-60
-                                  ),
-                              Item('timestep_length',
-                                   width=-20,
-                                  ),
-                              Item('duration_unit',
-                                   style='custom',
-                                   show_label=False,
-                                  ),
-                              Item('simulation_length',
-                                   width=-40,
-                                   label='# of timesteps',
-                                  ),
-                              Item('modelrun_event',
-                                   show_label=False
-                                  ),
-                              spring,
-                             ),
-                       HGroup(
-                              Item('result_type',
-                                   style='custom',
-                                   label='Show',
-                                  ),
-                              Item('save_result_event',
-                                   show_label=False,
-                                  ),
-                              Item('save_moment_event',
-                                   show_label=False,
-                                  ),
-                              spring,
-                             ),
-                       HGroup(
-                              Item('presentation_type',
-                                   style='custom',
-                                   label='As'
-                                  ),
-                              spring,
-                             ),
-                       Item('c_stock',
-                            visible_when='result_type=="C stock" and \
-                                          presentation_type=="array"',
-                            show_label=False,
-                            editor=c_stock_te,
-                           ),
-                       Item('c_change',
-                            visible_when='result_type=="C change" and \
-                                          presentation_type=="array"',
-                            show_label=False,
-                            editor=c_stock_te,
-                           ),
-                       Item('co2_yield',
-                            visible_when='result_type=="CO2 yield" and \
-                                          presentation_type=="array"',
-                            show_label=False,
-                            editor=co2_yield_te,
-                           ),
-                       HGroup(
-                              ChacoPlotItem('p_timestep',
-                                            'ps_tom',
-                                            show_label=False,
-                                            x_label = 'time',
-                                            y_label = 'total organic matter',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = 'Total organic matter',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              ChacoPlotItem(index='p_timestep',
-                                            value='ps_woody',
-                                            show_label=False,
-                                            x_label = 'time',
-                                            y_label = 'woody matter',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = 'Woody organic matter',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              ChacoPlotItem(index='p_timestep',
-                                            value='ps_acid',
-                                            show_label=False,
-                                            x_label = 'time',
-                                            y_label = 'acid soluble',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = 'Acid soluble',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              visible_when='result_type=="C stock" and \
-                                            presentation_type=="chart"',
-                             ),
-                       HGroup(
-                              ChacoPlotItem(index='p_timestep',
-                                            value='ps_water',
-                                            show_label=False,
-                                            x_label = 'time',
-                                            y_label = 'water soluble',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = 'Water soluble',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              ChacoPlotItem(index='p_timestep',
-                                            value='ps_ethanol',
-                                            show_label=False,
-                                            x_label = 'time',
-                                            y_label = 'ethanol soluble',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = 'Ethanol soluble',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              ChacoPlotItem(index='p_timestep',
-                                            value='ps_non_soluble',
-                                            show_label=False,
-                                            x_label = 'time',
-                                            y_label = 'non soluble',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = 'Non soluble',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              visible_when='result_type=="C stock" and \
-                                            presentation_type=="chart"',
-                             ),
-                       HGroup(
-                              ChacoPlotItem(index='p_timestep',
-                                            value='ps_humus',
-                                            show_label=False,
-                                            x_label = 'time',
-                                            y_label = 'humus',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = 'Humus',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              ChacoPlotItem(index='',
-                                            value='',
-                                            show_label=False,
-                                            x_label = '',
-                                            y_label = '',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = '',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              ChacoPlotItem(index='',
-                                            value='',
-                                            show_label=False,
-                                            x_label = '',
-                                            y_label = '',
-                                            resizable=True,
-                                            orientation='h',
-                                            title = '',
-                                            color = 'red',
-                                            bgcolor = 'white',
-                                            border_visible=False,
-                                            border_width=1,
-                                            padding_bg_color = 'lightgray'
-                                           ),
-                              visible_when='result_type=="C stock" and \
-                                            presentation_type=="chart"',
-                             ),
-
-                       label='Model run',
-                      ),
-                title     = 'Yasso 07',
-                id        = 'simosol.yasso07',
-                dock      = 'horizontal',
-                resizable = True,
-                width     = 300,
-                height    = 400,
-                scrollable= True,
-                buttons   = NoButtons,
-                menubar = MenuBar(
-                    Menu(CloseAction, name = 'File'),
-                    Menu(UndoAction, RedoAction, RevertAction, name = 'Edit'),
-                    Menu(HelpAction, name = 'Help')),
-               )
+        VGroup(
+            HGroup(
+                Item('load_all_data_event', show_label=False,),
+                spring,
+                ),
+            VGroup(
+                HGroup(
+                    Item(name='initial_mode', style='custom',
+                         show_label=False,),
+                    spring,
+                    Item(name='load_init_event', show_label=False,
+                         visible_when='initial_mode=="non zero"',),
+                    spring,
+                    ),
+                HGroup(
+                    Item('initial_litter',
+                         visible_when='initial_mode=="non zero"',
+                         show_label=False,
+                         editor=litter_component_te,
+                         width=700,
+                        ),
+                    spring,
+                    ),
+                label='initial condition',
+                ),
+            Group(
+                HGroup(
+                    Item('litter_mode', style='custom', show_label=False,),
+                    spring,
+                    Item(name='load_constant_litter_event', show_label=False,
+                         visible_when='litter_mode=="constant yearly"',),
+                    Item(name='load_monthly_litter_event', show_label=False,
+                         visible_when='litter_mode=="monthly"',),
+                    Item(name='load_yearly_litter_event', show_label=False,
+                         visible_when='litter_mode=="yearly"',),
+                    spring,
+                    ),
+                HGroup(
+                    Item('constant_litter',
+                         visible_when='litter_mode=="constant yearly"',
+                         show_label=False, editor=litter_component_te,
+                         width=790,),
+                    Item('monthly_litter',
+                         visible_when='litter_mode=="monthly"',
+                         show_label=False, editor=timed_litter_component_te,
+                         width=790,),
+                    Item('yearly_litter',
+                         visible_when='litter_mode=="yearly"',
+                         show_label=False, editor=timed_litter_component_te,
+                         width=790,),
+                    spring,
+                    ),
+                label='Litter input'
+                ),
+            Group(
+                HGroup(
+                    Item('climate_mode', style='custom', show_label=False,),
+                    spring,
+                    Item(name='load_yearly_climate_event', show_label=False,
+                       visible_when='climate_mode=="yearly"',),
+                    Item(name='load_monthly_climate_event', show_label=False,
+                       visible_when='climate_mode=="monthly"',),
+                    spring,
+                    ),
+                HGroup(
+                    Item('monthly_climate', show_label=False,
+                         visible_when='climate_mode=="monthly"',
+                         editor=monthly_climate_te, width=400, height=400,),
+                    Item('yearly_climate', show_label=False,
+                        visible_when='climate_mode=="yearly"',
+                        editor=yearly_climate_te, width=400, height=400,),
+                    VGroup(
+                        Item('object.constant_climate.annual_rainfall',
+                              width=200,),
+                        Item('object.constant_climate.mean_temperature',
+                              width=200,),
+                        Item('object.constant_climate.variation_amplitude',
+                              width=200,),
+                        show_border=True,
+                        visible_when='climate_mode=="constant yearly"'
+                        ),
+                    spring,
+                    ),
+                label='Climate'
+                ),
+            label='Data',
+            ),
+        VGroup(
+            HGroup(
+                Item('sample_size', width=-60),
+                Item('timestep_length', width=-30,),
+                Item('duration_unit', style='custom', show_label=False,),
+                Item('simulation_length', width=-40, label='# of timesteps',),
+                Item('modelrun_event', show_label=False),
+                spring,
+                ),
+            HGroup(
+                Item('result_type', style='custom', label='Show',),
+                Item('save_result_event', show_label=False,),
+                Item('save_moment_event', show_label=False,),
+                spring,
+                ),
+            HGroup(
+                Item('presentation_type', style='custom', label='As'),
+                spring,
+                ),
+            Item('c_stock', visible_when='result_type=="C stock" and \
+                  presentation_type=="array"', show_label=False,
+                  editor=c_stock_te,),
+            Item('c_change', visible_when='result_type=="C change" and \
+                  presentation_type=="array"', show_label=False,
+                  editor=c_stock_te,),
+            Item('co2_yield', visible_when='result_type=="CO2 yield" and \
+                  presentation_type=="array"', show_label=False,
+                  editor=co2_yield_te,),
+            HGroup(
+                ChacoPlotItem('p_timestep', 'ps_tom', show_label=False,
+                              x_label = 'time',
+                              y_label = 'total organic matter',
+                              resizable=True, orientation='h',
+                              title = 'Total organic matter',
+                              color = 'red', bgcolor = 'white',
+                              border_visible=False, border_width=1,
+                              padding_bg_color = 'lightgray'),
+                ChacoPlotItem('p_timestep', 'ps_woody', show_label=False,
+                              x_label = 'time', y_label = 'woody matter',
+                              resizable=True, orientation='h',
+                              title = 'Woody organic matter', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                ChacoPlotItem('p_timestep', 'ps_acid', show_label=False,
+                              x_label = 'time', y_label = 'acid soluble',
+                              resizable=True, orientation='h',
+                              title = 'Acid soluble', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                visible_when='result_type=="C stock" and \
+                              presentation_type=="chart"',
+                ),
+            HGroup(
+                ChacoPlotItem('p_timestep', 'ps_water', show_label=False,
+                              x_label = 'time', y_label = 'water soluble',
+                              resizable=True, orientation='h',
+                              title = 'Water soluble', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                ChacoPlotItem('p_timestep', 'ps_ethanol', show_label=False,
+                              x_label = 'time', y_label = 'ethanol soluble',
+                              resizable=True, orientation='h',
+                              title = 'Ethanol soluble', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                ChacoPlotItem('p_timestep', 'ps_non_soluble', show_label=False,
+                              x_label = 'time', y_label = 'non soluble',
+                              resizable=True, orientation='h',
+                              title = 'Non soluble', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                visible_when='result_type=="C stock" and \
+                              presentation_type=="chart"',
+                ),
+            HGroup(
+                ChacoPlotItem('p_timestep', 'ps_humus', show_label=False,
+                              x_label = 'time', y_label = 'humus',
+                              resizable=True, orientation='h',
+                              title = 'Humus', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                ChacoPlotItem(index='', value='', show_label=False,
+                              x_label = '', y_label = '', resizable=True,
+                              orientation='h', title = '', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                ChacoPlotItem(index='', value='', show_label=False,
+                              x_label = '', y_label = '', resizable=True,
+                              orientation='h', title = '', color = 'red',
+                              bgcolor = 'white', border_visible=False,
+                              border_width=1, padding_bg_color = 'lightgray'),
+                visible_when='result_type=="C stock" and \
+                                    presentation_type=="chart"',
+                ),
+            label='Model run',
+            ),
+        title     = 'Yasso 07',
+        id        = 'simosol.yasso07',
+        dock      = 'horizontal',
+        resizable = True,
+        width     = 800,
+        height    = 600,
+        scrollable= True,
+        buttons   = NoButtons,
+        menubar = MenuBar(
+            Menu(CloseAction, name = 'File'),
+            Menu(UndoAction, RedoAction, RevertAction, name = 'Edit'),
+            Menu(HelpAction, name = 'Help')),
+        )
 
 
 
@@ -685,6 +542,8 @@ class Yasso(HasTraits):
                 for section, vallist in data.items():
                     if section=='Initial state':
                         self._set_initial_state(vallist)
+                    elif section=='Constant litterfall':
+                        self._set_constant_litter(vallist)
                     elif section=='Monthly litterfall':
                         self._set_monthly_litter(vallist)
                     elif section=='Yearly litterfall':
@@ -734,6 +593,18 @@ class Yasso(HasTraits):
         data = self._load_file()
         if data != []:
             self._set_monthly_litter(data)
+
+    def _set_constant_litter(self, data):
+        errmsg = 'Litter components should contain: \n'\
+                      'mass, mass std, acid, acid std, water, '\
+                      'water std,\n'\
+                      ' ethanol, ethanol std, non soluble, non soluble std,'\
+                      '\n humus, humus std, size class'
+        for vals in data:
+            ok, obj = self._load_litter_object(vals, errmsg, False)
+            if not ok:
+                break
+            self.constant_litter.append(obj)
 
     def _set_monthly_litter(self, data):
         errmsg = 'Timed litter components should contain: \n'\
@@ -789,10 +660,9 @@ class Yasso(HasTraits):
                  'annual rainfall and temperature variation amplitude'
         if data!=[]:
             if len(data[0])==3:
-                obj = YearlyClimate(mean_temperature=data[0][0],
-                          annual_rainfall=data[0][1],
-                          variation_amplitude=data[0][2])
-                self.constant_climate = obj
+                self.constant_climate.mean_temperature = data[0][0]
+                self.constant_climate.annual_rainfall = data[0][1]
+                self.constant_climate.variation_amplitude = data[0][2]
             else:
                 error(errmsg, title='error reading data',
                       buttons=['OK'])
@@ -887,6 +757,7 @@ class Yasso(HasTraits):
             if self.result_type=='C stock':
                 comps = (('tom', self.stock_tom), ('woody', self.stock_woody),
                        ('acid', self.stock_acid), ('water', self.stock_water),
+                       ('ethanol', self.stock_ethanol),
                        ('non_soluble', self.stock_non_soluble),
                        ('humus', self.stock_humus))
                 header = '# C stock\n# component, time step, '\
@@ -895,6 +766,7 @@ class Yasso(HasTraits):
             elif self.result_type=='C change':
                 comps = (('tom', self.change_tom), ('woody', self.change_woody),
                        ('acid', self.change_acid), ('water', self.change_water),
+                       ('ethanol', self.change_ethanol),
                        ('non_soluble', self.change_non_soluble),
                        ('humus', self.change_humus))
                 header = '# C change\n# component, time step, '\

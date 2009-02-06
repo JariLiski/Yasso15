@@ -33,9 +33,9 @@ class ModelRunner(object):
         first = [float(val) for val in f.readline().split()]
         parr = numpy.array([first])
         parr.shape = (1, len(first))
-        #for line in f:
-        #    data = [float(val) for val in line.split()]
-        #    parr = numpy.append(parr, [data], axis=0)
+        for line in f:
+            data = [float(val) for val in line.split()]
+            parr = numpy.append(parr, [data], axis=0)
         self._model_param = parr
         f.close()
 
@@ -50,13 +50,14 @@ class ModelRunner(object):
                                   max=samplesize, show_time=True,
                                   can_cancel=True)
         progress.open()
-        timesteps = self._calculate_timesteps()
+        timesteps = self.md.simulation_length
         self.curr_yr_ind = 0
+        self.ml_run = True
+        self.infall = {}
         for j in range(samplesize):
             (cont, skip) = progress.update(j)
             if not cont or skip:
                 break
-            self.ml_run = True
             self.draw = True
             for k in range(timesteps):
                 climate = self._construct_climate(k)
@@ -70,9 +71,6 @@ class ModelRunner(object):
                                               climate)
                     self._add_c_stock_result(j, k, sizeclass, endstate)
                     self._endstate2initial(sizeclass, endstate)
-                if not self.ml_run:
-                    # first run is the maximum likelihood run, on the next
-                    # we draw the random sample, and on the next runs use it
                     self.draw = False
                 self._calculate_c_change(j, k)
                 self._calculate_co2_yield(j, k)
@@ -144,11 +142,6 @@ class ModelRunner(object):
         rowind = numpy.where(criterium)[0]
         atend = cs[rowind[0], 3]
         self.md.co2_yield[-1, 2] = self.ts_initial + self.ts_infall - atend
-
-    def _calculate_timesteps(self):
-        sl = self.md.simulation_length
-        tl = self.md.timestep_length
-        return int(math.ceil(sl/tl))
 
     def _construct_climate(self, timestep):
         """
@@ -321,14 +314,15 @@ class ModelRunner(object):
             tome[sc] = [m / div, m_std, a / div, a_std, w / div, w_std,
                         e / div, e_std, n / div, n_std, h / div, h_std]
 
-    def _draw_from_distr(self, values, pairs, ml):
+    def _draw_from_distr(self, values, pairs, randomize):
         """
         Draw a sample from the normal distribution based on the mean and std
         pairs
 
         values -- a vector containing mean and standard deviation pairs
         pairs -- how many pairs the vector contains
-        ml -- boolean for using the maximum likelihood values
+        randomize -- boolean for really drawing a random sample instead of
+                  using the maximum likelihood values
         """
         # sample size one less than pairs specification as pairs contain
         # the total mass and component percentages. These are transformed
@@ -338,7 +332,7 @@ class ModelRunner(object):
             vs = pairs[i]
             mean = values[2*i]
             std = values[2*i+1]
-            if std > 0.0 and not ml:
+            if std>0.0 and randomize:
                 samplemean = random.gauss(mean, std)
             else:
                 samplemean = mean
@@ -415,7 +409,10 @@ class ModelRunner(object):
                 var = stats.var(dataarr[ind[0], dataind])
                 skew = stats.skew(dataarr[ind[0], dataind])
                 kurtosis = stats.kurtosis(dataarr[ind[0], dataind])
-                sd2 = 2 * math.sqrt(var)
+                if var>0.0:
+                    sd2 = 2 * math.sqrt(var)
+                else:
+                    sd2 = var
                 res = [[timestep, mean, mode[0], var, skew, kurtosis,
                        mean - sd2, mean + sd2]]
                 if resto=='stock_tom':
@@ -521,7 +518,6 @@ class ModelRunner(object):
         """
         # model parameters
         if self.ml_run:
-            self.infall = {}
             # maximum likelihood estimates for the model parameters
             self.param = self._model_param[0,:]
         elif self.draw:
@@ -529,23 +525,23 @@ class ModelRunner(object):
             self.param = self._model_param[pind,:]
         # and mean values for the initial state and input
         if self.ml_run:
-            initial = self._draw_from_distr(initial, VALUESPEC, True)
-            self.infall[sc] = self._draw_from_distr(litter, VALUESPEC, True)
-        elif self.draw:
             initial = self._draw_from_distr(initial, VALUESPEC, False)
             self.infall[sc] = self._draw_from_distr(litter, VALUESPEC, False)
+        elif self.draw:
+            initial = self._draw_from_distr(initial, VALUESPEC, True)
+            self.infall[sc] = self._draw_from_distr(litter, VALUESPEC, True)
         else:
             # initial values drawn randomly only for the "draw" run
             # i.e. for the first run after maximum likelihood run
-            initial = self._draw_from_distr(initial, VALUESPEC, True)
+            initial = self._draw_from_distr(initial, VALUESPEC, False)
             if self.md.litter_mode!='constant yearly':
                 # if litter input is a timeseries, drawn at each step
                 # for constant input the values drawn at the beginning used
                 self.infall[sc] = self._draw_from_distr(litter, VALUESPEC,
-                                                         False)
+                                                        True)
         # climate
         na = numpy.array
-        f32 = numpy.float64
+        f32 = numpy.float32
         par = na(self.param, dtype=f32)
         dur = climate['duration']
         init = na(initial, dtype=f32)
@@ -557,13 +553,6 @@ class ModelRunner(object):
         cl = na([climate['temp'], climate['rain'], climate['amplitude']],
                 dtype=f32)
         endstate = y07.yasso.mod5c(par, dur, cl, init, inf, sc)
-        print "*****************"
-        print "par:", par
-        print "dur:", dur
-        print "cl:", cl
-        print "init:", init
-        print "inf, sc:", inf, sc
-        print "result:", endstate
         self.ts_initial += sum(initial)
         self.ts_infall += sum(self.infall[sc])
         return endstate

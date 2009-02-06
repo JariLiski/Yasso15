@@ -19,13 +19,12 @@ CONTAINS
     REAL,DIMENSION(5),INTENT(IN) :: init
     REAL,DIMENSION(5),INTENT(IN) :: inf !infall
     REAL,DIMENSION(5),INTENT(OUT) :: z
-    REAL,DIMENSION(5,5) :: m,m2,mi
-    INTEGER :: l,i
+    REAL,DIMENSION(5,5) :: m,mt,m2,mi
+    INTEGER :: i
     REAL,PARAMETER :: pi=3.1415926535
-    REAL :: h,tem
+    REAL :: tem
     REAL,DIMENSION(5) :: te
     REAL,DIMENSION(5) :: z1,z2
-    write(*,*)'beginning...'
     !temperature annual cycle approximation
     te(1)=cl(1)+4*cl(3)*(1/SQRT(2.0)-1)/pi
     te(2)=cl(1)-4*cl(3)/SQRT(2.0)/pi
@@ -46,15 +45,19 @@ CONTAINS
     m(2,1)=a(5)*ABS(m(2,2))
     m(3,1)=a(6)*ABS(m(3,3))
     m(4,1)=a(7)*ABS(m(4,4))
+    m(5,1)=0.0
     m(1,2)=a(8)*ABS(m(1,1))
     m(3,2)=a(9)*ABS(m(3,3))
     m(4,2)=a(10)*ABS(m(4,4))
+    m(5,2)=0.0
     m(1,3)=a(11)*ABS(m(1,1))
     m(2,3)=a(12)*ABS(m(2,2))
     m(4,3)=a(13)*ABS(m(4,4))
+    m(5,3)=0.0
     m(1,4)=a(14)*ABS(m(1,1))
     m(2,4)=a(15)*ABS(m(2,2))
     m(3,4)=a(16)*ABS(m(3,3))
+    m(5,4)=0.0
     m(5,5)=a(35)*tem !no size effect in humus
     DO i=1,4
       m(i,5)=a(36)*ABS(m(i,i)) !mass flows EWAN -> H
@@ -62,51 +65,44 @@ CONTAINS
     DO i=1,5
       z1(i)=DOT_PRODUCT(m(:,i),init)+inf(i)
     END DO
-    write(*,*)'before matrixexp...'
-    CALL matrixexp(m*t,5, m2)
+    mt=m*t
+    CALL matrixexp(mt,m2)
     DO i=1,5
       z2(i)=DOT_PRODUCT(m2(:,i),z1)-inf(i)
     END DO
-    write(*,*)'before inverse...'
-    CALL inverse(m,5, mi)
+    CALL inverse(m,mi)
     DO i=1,5
       z1(i)=DOT_PRODUCT(mi(:,i),z2)
     END DO
     z=z1
-    write(*,*)'done...'
 
   CONTAINS
 
-     SUBROUTINE matrixexp(a,r,b)
-     IMPLICIT NONE
+      SUBROUTINE matrixexp(a,b)
+      IMPLICIT NONE
         !returns approximated matrix exponential
         !Taylor (Bade to be written) approximation..another algorithm perhaps?
-        INTEGER,INTENT(IN) :: r
-        REAL,DIMENSION(r,r),INTENT(IN) :: a
-        REAL,DIMENSION(r,r),INTENT(OUT) :: b
-        REAL,DIMENSION(r,r) :: c,d
-        REAL :: p
-        INTEGER :: i,q,j,normiter
-        write(*,*)'starting matrixexp...'
+        REAL,DIMENSION(5,5),INTENT(IN) :: a
+        REAL,DIMENSION(5,5),INTENT(OUT) :: b
+        REAL,DIMENSION(5,5) :: c,d
+        REAL :: p,normiter
+        INTEGER :: i,q,j
         q=10
         b=0.0
-        DO i=1,r
+        DO i=1,5
           b(i,i)=1.0
         END DO
-        normiter=2
+        normiter=2.0
         j=1
-        write(*,*)'calling matrix2norm...'
         CALL matrix2norm(a, p)
-        write(*,*) 'normiter before: ', normiter
         DO
-          IF(p<REAL(normiter))THEN
+          IF(p<normiter)THEN
             EXIT
           END IF
-          normiter=normiter*2
+          normiter=normiter*2.0
           j=j+1
-          write(6,*) p,normiter,j
         END DO
-        c=a/REAL(normiter)
+        c=a/normiter
         b=b+c
         d=c
         DO i=2,q
@@ -116,7 +112,6 @@ CONTAINS
         DO i=1,j
           b=MATMUL(b,b)
         END DO
-        write(*,*)'done with matrixexp...'
       END SUBROUTINE matrixexp
 
       SUBROUTINE matrix2norm(a,b)
@@ -125,27 +120,22 @@ CONTAINS
         !square matrix input (generalize if necessary)
         REAL,DIMENSION(5,5),INTENT(IN) :: a
         REAL,INTENT(OUT) :: b
-        REAL :: c
         INTEGER :: n,i
-        write(*,*)'starting matrix2norm...'
         n=SIZE(a(1,:))
         b=0.0
         DO i=1,n
           b=b+SUM(a(:,i))**2.0
         END DO
         b=SQRT(b)
-        write(*,*)'done with matrix2norm...'
-        write(6,*)b
       END SUBROUTINE matrix2norm
 
-      SUBROUTINE inverse(a,s,b)
+      SUBROUTINE inverse(a,b)
       IMPLICIT NONE
         !returns an inverse of matrix a (column elimination strategy)
         !input has to be a square matrix, otherwise erroneous
-        INTEGER,INTENT(IN) :: s
-        REAL,DIMENSION(s,s),INTENT(IN)  :: a
-        REAL,DIMENSION(s,s),INTENT(OUT)  :: b
-        REAL,DIMENSION(s,s) :: c
+        REAL,DIMENSION(5,5),INTENT(IN)  :: a
+        REAL,DIMENSION(5,5),INTENT(OUT)  :: b
+        REAL,DIMENSION(5,5) :: c
         INTEGER :: n,m,i,j
         n=SIZE(a(1,:))
         m=SIZE(a(:,1))
