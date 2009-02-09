@@ -11,7 +11,6 @@ import random
 from scipy.stats import stats
 from enthought.pyface.api import ProgressDialog
 
-PARAMFILE = 'yasso_param.txt'
 # the order in which data comes in (defined by list index) and in which
 # it should passed to the model (defined in the tuple)
 VALUESPEC = [('mass', None), ('acid', 0), ('water', 1), ('ethanol', 2),
@@ -25,11 +24,11 @@ class ModelRunner(object):
     to the model
     """
 
-    def __init__(self):
+    def __init__(self, parfile):
         """
         Constructor.
         """
-        f = open(PARAMFILE)
+        f = open(parfile)
         first = [float(val) for val in f.readline().split()]
         parr = numpy.array([first])
         parr.shape = (1, len(first))
