@@ -44,7 +44,7 @@ class LitterComponent(HasTraits):
     size_class = Float(default=0.0)
 
 class TimedLitterComponent(HasTraits):
-    timestep = Float()
+    timestep = Int()
     mass = Float()
     mass_std = Float()
     acid = Range(low=0.0, high=100.0)
@@ -200,6 +200,7 @@ class Yasso(HasTraits):
     simulation_length = Range(low=1)
     result_type = Enum(['C stock', 'C change', 'CO2 yield'])
     presentation_type = Enum(['array', 'chart'])
+    chart_type = Enum(['common scale', 'autofit'])
     # Buttons
     open_data_file_event = Button('Open data file...')
     save_data_file_event = Button('Save data file')
@@ -232,6 +233,8 @@ class Yasso(HasTraits):
     co2 = Array(dtype=float32, shape=(None, 8))
     # plot variables
     stock_plots = Instance(GridContainer)
+    change_plots = Instance(GridContainer)
+    co2_plot = Instance(Plot)
     p_timestep = Array()
     ps_tom = Array()
     ps_woody = Array()
@@ -351,6 +354,8 @@ class Yasso(HasTraits):
                 ),
             HGroup(
                 Item('presentation_type', style='custom', label='As'),
+                Item('chart_type', style='custom', label='Chart type',
+                     visible_when='presentation_type=="chart"'),
                 spring,
                 ),
             HGroup(
@@ -366,6 +371,14 @@ class Yasso(HasTraits):
                 Item('stock_plots', editor=ComponentEditor(),
                      show_label=False, width=800, height=800,
                      visible_when='result_type=="C stock" and \
+                                  presentation_type=="chart"',),
+                Item('change_plots', editor=ComponentEditor(),
+                     show_label=False, width=800, height=800,
+                     visible_when='result_type=="C change" and \
+                                  presentation_type=="chart"',),
+                Item('co2_plot', editor=ComponentEditor(),
+                     show_label=False, width=800, height=800,
+                     visible_when='result_type=="CO2 yield" and \
                                   presentation_type=="chart"',),
                 spring,
                 ),
@@ -428,43 +441,109 @@ class Yasso(HasTraits):
 # for plot data
 #########################
 
-    def _set_plot_data(self):
-       # Create the data and the PlotData object
-        x = range(self.simulation_length)
-        stom = self._create_plot(x, self.stock_tom, 'Total organic matter')
-        swoody = self._create_plot(x, self.stock_woody, 'Woody matter')
-        sa = self._create_plot(x, self.stock_acid, 'Acid soluble')
-        sw = self._create_plot(x, self.stock_water, 'Water soluble')
-        se = self._create_plot(x, self.stock_ethanol, 'Ethanol soluble')
-        sn = self._create_plot(x, self.stock_non_soluble, 'Non soluble')
-        sh = self._create_plot(x, self.stock_humus, 'Humus')
+    def _create_stock_plots(self, common_scale=False):
+        max = None
+        min = 0
+        stom, max, min = self._create_plot(max, min, self.stock_tom,
+                                      'Total organic matter')
+        swoody, max, min = self._create_plot(max, min, self.stock_woody,
+                                        'Woody matter')
+        sa, max, min = self._create_plot(max, min, self.stock_acid,
+                                         'Acid soluble')
+        sw, max, min = self._create_plot(max, min, self.stock_water,
+                                         'Water soluble')
+        se, max, min = self._create_plot(max, min, self.stock_ethanol,
+                                         'Ethanol soluble')
+        sn, max, min = self._create_plot(max, min, self.stock_non_soluble,
+                                         'Non soluble')
+        sh, max, min = self._create_plot(max, min, self.stock_humus, 'Humus')
+        if common_scale:
+            for pl in (stom, swoody, sa, sw, se, sn, sh):
+                pl.value_range.set_bounds(min, max)
         container = GridContainer(stom, swoody, sa, sw, se, sn, sh)
         container.shape = (3,3)
-        #container.spacing = (5,5,5,5,5,5,5)
+        container.spacing = (5,5)
         self.stock_plots = container
 
-    def _create_plot(self, x, dataobj, title):
-        y= dataobj[:,1]
-        y2 = dataobj[:,6]
-        y3 = dataobj[:,7]
-        plotdata = ArrayPlotData(x=x, y=y, y2=y2, y3=y3)
+    def _create_change_plots(self, common_scale=False):
+        max = None
+        min = 0
+        ctom, max, min = self._create_plot(max, min, self.change_tom,
+                                           'Total organic matter')
+        cwoody, max, min = self._create_plot(max, min, self.change_woody,
+                                             'Woody matter')
+        ca, max, min = self._create_plot(max, min, self.change_acid,
+                                         'Acid soluble')
+        cw, max, min = self._create_plot(max, min, self.change_water,
+                                         'Water soluble')
+        ce, max, min = self._create_plot(max, min, self.change_ethanol,
+                                         'Ethanol soluble')
+        cn, max, min = self._create_plot(max, min, self.change_non_soluble,
+                                         'Non soluble')
+        ch, max, min = self._create_plot(max, min, self.change_humus, 'Humus')
+        if common_scale:
+            for pl in (ctom, cwoody, ca, cw, ce, cn, ch):
+                pl.value_range.set_bounds(min, max)
+        container = GridContainer(ctom, cwoody, ca, cw, ce, cn, ch)
+        container.shape = (3,3)
+        container.spacing = (5,5)
+        self.change_plots = container
+
+    def _create_co2_plot(self):
+        max = None
+        min = 0
+        co2, max, min = self._create_plot(max, min, self.co2,
+                                           'CO2 yield')
+        self.co2_plot = co2
+
+    def _create_plot(self, max, min, dataobj, title):
+        x = dataobj[:,0]
+        y = dataobj[:,1]
+        if y.max()>max:
+            max = y.max()
+        if y.min()<min:
+            min = y.min()
+        if self.sample_size>1:
+            y2 = dataobj[:,6]
+            y3 = dataobj[:,7]
+            if y3.max()>max:
+                max = y3.max()
+            if y2.min()<min:
+                min = y2.min()
+            plotdata = ArrayPlotData(x=x, y=y, y2=y2, y3=y3)
+        else:
+            plotdata = ArrayPlotData(x=x, y=y)
         plot = Plot(plotdata)
         plot.plot(("x", "y"), type="line", color="blue")
-        plot.plot(("x", "y2"), type="line", color="red")
-        plot.plot(("x", "y3"), type="line", color="red")
-        plot.padding_right = 45
-        plot.padding_left = 25
-        plot.padding_top = 25
-        plot.padding_bottom = 25
+        if self.sample_size>1:
+            plot.plot(("x", "y2"), type="line", color="red")
+            plot.plot(("x", "y3"), type="line", color="red")
+        #plot.padding_right = 45
+        #plot.padding_left = 25
+        #plot.padding_top = 25
+        #plot.padding_bottom = 25
         plot.title = title
         plot.title_font = 'Arial 10'
-        return plot
+        return plot, max, min
 
     def _modelrun_event_fired(self):
         self._init_results()
         self.c_stock, self.c_change, self.co2_yield = \
                 self.yassorunner.run_model(self)
-        self._set_plot_data()
+        self._create_co2_plot()
+        self._chart_type_changed()
+
+########################
+# for chart type
+########################
+
+    def _chart_type_changed(self):
+        if self.chart_type=='autofit':
+            self._create_stock_plots()
+            self._create_change_plots()
+        elif self.chart_type=='common scale':
+            self._create_stock_plots(common_scale=True)
+            self._create_change_plots(common_scale=True)
 
 ########################
 # for buttons
@@ -643,7 +722,7 @@ class Yasso(HasTraits):
         loaded = True
         if hastime:
             if len(data)==14:
-                obj = TimedLitterComponent(timestep=data[0],
+                obj = TimedLitterComponent(timestep=int(data[0]),
                         mass=data[1],
                         mass_std=data[2],
                         acid=data[3],

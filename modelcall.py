@@ -67,15 +67,17 @@ class ModelRunner(object):
                 self.ts_infall = 0.0
                 self.__create_input(k)
                 for sizeclass in self.initial:
-                    endstate = self._predict(sizeclass,
-                                              self.initial[sizeclass],
-                                              self.litter[sizeclass],
-                                              climate)
-                    self._add_c_stock_result(j, k, sizeclass, endstate)
+                    initial, endstate = self._predict(sizeclass,
+                                                      self.initial[sizeclass],
+                                                      self.litter[sizeclass],
+                                                      climate)
+                    if k==0:
+                        self._add_c_stock_result(j, k, sizeclass, initial)
+                    self._add_c_stock_result(j, k+1, sizeclass, endstate)
                     self._endstate2initial(sizeclass, endstate)
                     self.draw = False
-                self._calculate_c_change(j, k)
-                self._calculate_co2_yield(j, k)
+                self._calculate_c_change(j, k+1)
+                self._calculate_co2_yield(j, k+1)
             self.ml_run = False
         self._fill_moment_results()
         progress.update(samplesize)
@@ -143,8 +145,9 @@ class ModelRunner(object):
         # total organic matter at index 3
         criterium = (cs[:,0]==s) & (cs[:,1]==ts)
         rowind = numpy.where(criterium)[0]
-        atend = cs[rowind[0], 3]
-        self.co2_yield[-1, 2] = self.ts_initial + self.ts_infall - atend
+        if len(rowind)>0:
+            atend = cs[rowind[0], 3]
+            self.co2_yield[-1, 2] = self.ts_initial + self.ts_infall - atend
 
     def _construct_climate(self, timestep):
         """
@@ -220,6 +223,14 @@ class ModelRunner(object):
         temp = 0.0
         ampl = 0.0
         years = range(sy, sy + int(dur))
+        addyear = True
+        # the following handles the case when simulation timeste
+        # is in months but climate in years
+        if len(years)==0:
+            years = [0]
+            firstyearweight = 1.0
+            if (sm + self.md.timestep_length)<12:
+                addyear = False
         for ind in range(len(years)):
             if self.curr_yr_ind > len(self.md.yearly_climate) - 1:
                 self.curr_yr_ind = 0
@@ -233,9 +244,10 @@ class ModelRunner(object):
             temp += weight * cy.mean_temperature
             rain += weight * cy.annual_rainfall
             ampl += weight * cy.variation_amplitude
-            self.curr_yr_ind +=1
+            if addyear:
+                self.curr_yr_ind +=1
         # backs one year back, if the last weight was less than 1
-        if weight < 1.0:
+        if weight < 1.0 and addyear:
             self.curr_yr_ind -= 1
             if self.curr_yr_ind < 0:
                 self.curr_yr_ind = len(self.md.yearly_climate) - 1
@@ -499,7 +511,7 @@ class ModelRunner(object):
             # the first mont/year will have index number 1, hence deduce 1 m/y
             start = STARTDATE - inputdur
             for ind in range(len(infall)):
-                relamount = infall[ind].timestep
+                relamount = int(infall[ind].timestep)
                 if self.md.litter_mode=='monthly':
                     inputdate = start + relativedelta(months=relamount)
                 else:
@@ -559,5 +571,5 @@ class ModelRunner(object):
         endstate = y07.yasso.mod5c(par, dur, cl, init, inf, sc)
         self.ts_initial += sum(initial)
         self.ts_infall += sum(self.infall[sc])
-        return endstate
+        return init, endstate
 
