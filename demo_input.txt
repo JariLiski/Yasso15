@@ -7,8 +7,10 @@
 # decimal separator is ., no thousands separator
 #
 [Initial state]
-# mass, mass std, acid, acid std, water, water std, ethanol, ethanol std, 
-# non soluble, non soluble std, humus, humus std, size class
+# Data given in value pairs: mean and standard deviation except for the size
+# class
+# mass as unit of mass, others as percentage of the total mass
+# mass, acid, water, ethanol, non soluble, humus, size class
 2.0 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0.0 0.0 0.0
 2.0 0.1 0.6300 0.01 0.0300 0.01 0.0000 0.01 0.3300 0.01 0.0 0.0 10.0 
 
@@ -42,7 +44,7 @@
 1 2.0 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 7
 2 2.2 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
 3 2.4 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
-4 2.6 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
+4 20.6 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
 5 2.9 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
 6 3.2 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
 7 3.5 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
@@ -72,16 +74,16 @@
 12 -4.1 588
 
 [Yearly climate]
-# mean temperature, precipitation, temperature variation amplitude
-3.8 822 11.4
-4.0 758.1 11.2
-4.2 796.0 11.0
-4.4 835.8 10.8
-4.6 877.5 10.6
-4.8 921.4 10.4
-5.0 967.5 10.2
-5.2 1015.9 10.0
-5.4 1066.7 9.8
-5.6 1120.0 9.6
-5.8 1176.0 9.4
-6.0 1234.8 9.2
+# timestep, mean temperature, precipitation, temperature variation amplitude
+1 3.8 822 11.4
+2 4.0 758.1 11.2
+3 4.2 796.0 11.0
+4 4.4 835.8 10.8
+5 4.6 877.5 10.6
+6 4.8 921.4 10.4
+7 5.0 967.5 10.2
+8 5.2 1015.9 10.0
+9 5.4 1066.7 9.8
+10 5.6 1120.0 9.6
+11 5.8 1176.0 9.4
+12 6.0 1234.8 9.2

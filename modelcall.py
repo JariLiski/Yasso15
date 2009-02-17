@@ -40,6 +40,9 @@ class ModelRunner(object):
 
     def run_model(self, modeldata):
         self.md = modeldata
+        self.c_stock = numpy.empty(shape=(0,9), dtype=numpy.float32)
+        self.c_change = numpy.empty(shape=(0,9), dtype=numpy.float32)
+        self.co2_yield = numpy.empty(shape=(0,3), dtype=numpy.float32)
         self.timemap = defaultdict(list)
         samplesize = self.md.sample_size
         msg = "Simulating %d samples for %d timesteps" % (samplesize,
@@ -76,6 +79,7 @@ class ModelRunner(object):
             self.ml_run = False
         self._fill_moment_results()
         progress.update(samplesize)
+        return self.c_stock, self.c_change, self.co2_yield
 
     def _add_c_stock_result(self, sample, timestep, sc, endstate):
         """
@@ -84,7 +88,7 @@ class ModelRunner(object):
         res -- model results augmented with timestep, iteration and
                sizeclass data
         """
-        cs = self.md.c_stock
+        cs = self.c_stock
         # if sizeclass is non-zero, all the components are added together
         # to get the mass of wood
         if sc > 0:
@@ -101,10 +105,10 @@ class ModelRunner(object):
         criterium = (cs[:,0]==res[0,0]) & (cs[:,1]==res[0,1])
         target = numpy.where(criterium)[0]
         if len(target) == 0:
-            self.md.c_stock = numpy.append(cs, res, axis=0)
+            self.c_stock = numpy.append(cs, res, axis=0)
         else:
             # if there are, add the new results to the existing ones
-            self.md.c_stock[target[0],2:] = numpy.add(cs[target[0],2:], res[0,2:])
+            self.c_stock[target[0],2:] = numpy.add(cs[target[0],2:], res[0,2:])
 
     def _calculate_c_change(self, s, ts):
         """
@@ -113,8 +117,8 @@ class ModelRunner(object):
         s -- sample ordinal
         ts -- timestep ordinal
         """
-        cc = self.md.c_change
-        cs = self.md.c_stock
+        cc = self.c_change
+        cs = self.c_stock
         criterium = (cs[:,0]==s) & (cs[:,1]==ts)
         nowtarget = numpy.where(criterium)[0]
         criterium = (cs[:,0]==s) & (cs[:,1]==ts-1)
@@ -122,8 +126,8 @@ class ModelRunner(object):
         if len(nowtarget) > 0 and len(prevtarget)>0:
             stepinf = numpy.array([[s, ts, 0., 0., 0., 0., 0., 0., 0.]],
                                   dtype=numpy.float32)
-            self.md.c_change = numpy.append(cc, stepinf, axis=0)
-            self.md.c_change[-1, 2:] = cs[nowtarget, 2:] - cs[prevtarget, 2:]
+            self.c_change = numpy.append(cc, stepinf, axis=0)
+            self.c_change[-1, 2:] = cs[nowtarget, 2:] - cs[prevtarget, 2:]
 
     def _calculate_co2_yield(self, s, ts):
         """
@@ -132,15 +136,15 @@ class ModelRunner(object):
         s -- sample ordinal
         ts -- timestep ordinal
         """
-        cs = self.md.c_stock
-        cy = self.md.co2_yield
+        cs = self.c_stock
+        cy = self.co2_yield
         stepinf = numpy.array([[s, ts, 0.]], dtype=numpy.float32)
-        self.md.co2_yield = numpy.append(cy, stepinf, axis=0)
+        self.co2_yield = numpy.append(cy, stepinf, axis=0)
         # total organic matter at index 3
         criterium = (cs[:,0]==s) & (cs[:,1]==ts)
         rowind = numpy.where(criterium)[0]
         atend = cs[rowind[0], 3]
-        self.md.co2_yield[-1, 2] = self.ts_initial + self.ts_infall - atend
+        self.co2_yield[-1, 2] = self.ts_initial + self.ts_infall - atend
 
     def _construct_climate(self, timestep):
         """
@@ -381,22 +385,21 @@ class ModelRunner(object):
          common format: time, mean, mode, var, skewness, kurtosis,
                         95% confidence lower limit, 95% upper limit
         """
-        md = self.md
-        toprocess = [('stock_tom', md.c_stock, 2),
-                     ('stock_woody', md.c_stock, 3),
-                     ('stock_acid', md.c_stock, 4),
-                     ('stock_water', md.c_stock, 5),
-                     ('stock_ethanol',  md.c_stock, 6),
-                     ('stock_non_soluble', md.c_stock, 7),
-                     ('stock_humus', md.c_stock, 8),
-                     ('change_tom', md.c_change, 2),
-                     ('change_woody', md.c_change, 3),
-                     ('change_acid', md.c_change, 4),
-                     ('change_water', md.c_change, 5),
-                     ('change_ethanol', md.c_change, 6),
-                     ('change_non_soluble', md.c_change, 7),
-                     ('change_humus', md.c_change, 8),
-                     ('co2', md.co2_yield, 2)]
+        toprocess = [('stock_tom', self.c_stock, 2),
+                     ('stock_woody', self.c_stock, 3),
+                     ('stock_acid', self.c_stock, 4),
+                     ('stock_water', self.c_stock, 5),
+                     ('stock_ethanol',  self.c_stock, 6),
+                     ('stock_non_soluble', self.c_stock, 7),
+                     ('stock_humus', self.c_stock, 8),
+                     ('change_tom', self.c_change, 2),
+                     ('change_woody', self.c_change, 3),
+                     ('change_acid', self.c_change, 4),
+                     ('change_water', self.c_change, 5),
+                     ('change_ethanol', self.c_change, 6),
+                     ('change_non_soluble', self.c_change, 7),
+                     ('change_humus', self.c_change, 8),
+                     ('co2', self.co2_yield, 2)]
         for (resto, dataarr, dataind) in toprocess:
             # filter time steps
             ts = numpy.unique(dataarr[:,1])
@@ -489,18 +492,20 @@ class ModelRunner(object):
             end = now + dur - relativedelta(days=1)
             if self.md.litter_mode=='monthly':
                 inputdur = relativedelta(months=1)
-                inputdate = STARTDATE
-                for ind in range(len(self.md.monthly_litter)):
-                    if inputdate>=now and inputdate<=end:
-                        self.timemap[timestep].append(ind)
-                    inputdate += inputdur
+                infall = self.md.monthly_litter
             elif self.md.litter_mode=='yearly':
                 inputdur = relativedelta(years=1)
-                inputdate = STARTDATE
-                for ind in range(len(self.md.yearly_litter)):
-                    if inputdate>=now and inputdate<=end:
-                        self.timemap[timestep].append(ind)
-                    inputdate += inputdur
+                infall = self.md.yearly_litter
+            # the first mont/year will have index number 1, hence deduce 1 m/y
+            start = STARTDATE - inputdur
+            for ind in range(len(infall)):
+                relamount = infall[ind].timestep
+                if self.md.litter_mode=='monthly':
+                    inputdate = start + relativedelta(months=relamount)
+                else:
+                    inputdate = start + relativedelta(years=relamount)
+                if inputdate>=now and inputdate<=end:
+                    self.timemap[timestep].append(ind)
         if timestep not in self.timemap:
             self.timemap[timestep] = []
         return self.timemap[timestep]

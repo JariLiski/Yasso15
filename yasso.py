@@ -60,6 +60,7 @@ class TimedLitterComponent(HasTraits):
     size_class = Float(default=0.0)
 
 class YearlyClimate(HasTraits):
+    timestep = Int()
     mean_temperature = Float()
     annual_rainfall = Float()
     variation_amplitude = Float()
@@ -191,6 +192,7 @@ class Yasso(HasTraits):
     yearly_climate = List(trait=YearlyClimate)
     # All data as text
     all_data = Str()
+    data_file = Str()
     # How the model will be run
     sample_size = Int()
     duration_unit = Enum(['year', 'month'])
@@ -255,6 +257,7 @@ class Yasso(HasTraits):
             HGroup(
                 Item('open_data_file_event', show_label=False,),
                 Item('save_data_file_event', show_label=False,),
+                Item('data_file', style='readonly', show_label=False,),
                 spring,
                 ),
             HGroup(
@@ -389,20 +392,19 @@ class Yasso(HasTraits):
 ###############################################################################
 
     def __init__(self):
-        self.data_file = None
         self.sample_size = 10
         self.simulation_length = 10
         join = os.path.join
         fn = os.path.split(sys.executable)
         if fn[1].lower() == 'python':
             exedir = os.path.split(sys.argv[0])[0]
-            datafile = join(os.path.abspath(exedir), 'demo_input.txt')
+            self.data_file = join(os.path.abspath(exedir), 'demo_input.txt')
             parfile = join(os.path.abspath(exedir), 'yasso_param.txt')
         else:
-            datafile = join(fn[0], 'demo_input.txt')
+            self.data_file = join(fn[0], 'demo_input.txt')
             parfile = join(fn[0], 'yasso_param.txt')
         try:
-            f = open(datafile)
+            f = open(self.data_file)
             self._load_all_data(f)
             f.close()
         except:
@@ -450,7 +452,7 @@ class Yasso(HasTraits):
         plot.plot(("x", "y"), type="line", color="blue")
         plot.plot(("x", "y2"), type="line", color="red")
         plot.plot(("x", "y3"), type="line", color="red")
-        plot.padding_right = 25
+        plot.padding_right = 45
         plot.padding_left = 25
         plot.padding_top = 25
         plot.padding_bottom = 25
@@ -460,7 +462,8 @@ class Yasso(HasTraits):
 
     def _modelrun_event_fired(self):
         self._init_results()
-        self.yassorunner.run_model(self)
+        self.c_stock, self.c_change, self.co2_yield = \
+                self.yassorunner.run_model(self)
         self._set_plot_data()
 
 ########################
@@ -594,14 +597,14 @@ class Yasso(HasTraits):
             self.yearly_litter.append(obj)
 
     def _set_yearly_climate(self, data):
-        errmsg = 'Yearly climate should contain: mean temperature,\n'\
+        errmsg = 'Yearly climate should contain: timestep, mean temperature,\n'\
                  'annual rainfall and temperature variation amplitude'
         self.yearly_climate = []
         for vals in data:
-            if len(vals)==3:
-                obj = YearlyClimate(mean_temperature=vals[0],
-                          annual_rainfall=vals[1],
-                          variation_amplitude=vals[2])
+            if len(vals)==4:
+                obj = YearlyClimate(mean_temperature=vals[1],
+                          annual_rainfall=vals[2],
+                          variation_amplitude=vals[3])
                 self.yearly_climate.append(obj)
             elif vals!=[]:
                 error(errmsg, title='error reading data',
