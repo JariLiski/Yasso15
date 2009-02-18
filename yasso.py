@@ -204,7 +204,9 @@ class Yasso(HasTraits):
     # Buttons
     open_data_file_event = Button('Open data file...')
     save_data_file_event = Button('Save data file')
+    save_as_file_event = Button('Save as...')
     modelrun_event = Button('Run model')
+    steady_state_event = Button('Solve steady state')
     save_result_event = Button('Save raw results...')
     save_moment_event = Button('Save moment results...')
     # and the results stored
@@ -260,6 +262,7 @@ class Yasso(HasTraits):
             HGroup(
                 Item('open_data_file_event', show_label=False,),
                 Item('save_data_file_event', show_label=False,),
+                Item('save_as_file_event', show_label=False,),
                 Item('data_file', style='readonly', show_label=False,),
                 spring,
                 ),
@@ -344,6 +347,8 @@ class Yasso(HasTraits):
                 Item('duration_unit', style='custom', show_label=False,),
                 Item('simulation_length', width=-40, label='# of timesteps',),
                 Item('modelrun_event', show_label=False),
+                #Item('steady_state_event', show_label=False,
+                #     visible_when='litter_mode=="constant yearly"'),
                 spring,
                 ),
             HGroup(
@@ -377,7 +382,7 @@ class Yasso(HasTraits):
                      visible_when='result_type=="C change" and \
                                   presentation_type=="chart"',),
                 Item('co2_plot', editor=ComponentEditor(),
-                     show_label=False, width=800, height=800,
+                     show_label=False, width=400, height=400,
                      visible_when='result_type=="CO2 yield" and \
                                   presentation_type=="chart"',),
                 spring,
@@ -526,7 +531,17 @@ class Yasso(HasTraits):
         plot.title_font = 'Arial 10'
         return plot, max, min
 
+########################
+# for running the model
+########################
+
     def _modelrun_event_fired(self):
+        self._run_model()
+
+    def _steady_state_event_fired(self):
+        self._run_model()
+
+    def _run_model(self):
         self._init_results()
         self.c_stock, self.c_change, self.co2_yield = \
                 self.yassorunner.run_model(self)
@@ -566,6 +581,13 @@ class Yasso(HasTraits):
             if filename=='':
                 return
             self.data_file = filename
+        self._save_all_data()
+
+    def _save_as_file_event_fired(self):
+        filename = save_file()
+        if filename=='':
+            return
+        self.data_file = filename
         self._save_all_data()
 
     def _load_all_data(self, datafile):

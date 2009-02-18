@@ -10,6 +10,7 @@ from collections import defaultdict
 import random
 from scipy.stats import stats
 from enthought.pyface.api import ProgressDialog
+from enthought.traits.ui.message import error
 
 # the order in which data comes in (defined by list index) and in which
 # it should passed to the model (defined in the tuple)
@@ -56,6 +57,7 @@ class ModelRunner(object):
         self.curr_yr_ind = 0
         self.ml_run = True
         self.infall = {}
+        timemsg = None
         for j in range(samplesize):
             (cont, skip) = progress.update(j)
             if not cont or skip:
@@ -63,6 +65,10 @@ class ModelRunner(object):
             self.draw = True
             for k in range(timesteps):
                 climate = self._construct_climate(k)
+                if climate==-1:
+                    timemsg = "Simulation extends too far into the future. "\
+                              "Couldn't allocate inputs to all timesteps"
+                    break
                 self.ts_initial = 0.0
                 self.ts_infall = 0.0
                 self.__create_input(k)
@@ -81,6 +87,9 @@ class ModelRunner(object):
             self.ml_run = False
         self._fill_moment_results()
         progress.update(samplesize)
+        if timemsg is not None:
+            error(timemsg, title='Error handling timesteps',
+                  buttons=['OK'])
         return self.c_stock, self.c_change, self.co2_yield
 
     def _add_c_stock_result(self, sample, timestep, sc, endstate):
@@ -156,6 +165,8 @@ class ModelRunner(object):
         """
         cl = {}
         now = self._get_now(timestep)
+        if now==-1:
+            return -1
         cl['start month'] = now.month
         if self.md.duration_unit == 'month':
             yeardur = self.md.timestep_length / 12.
@@ -311,23 +322,8 @@ class ModelRunner(object):
                 e_std += mass * litter.ethanol_std
                 n_std += mass * litter.non_soluble_std
                 h_std += mass * litter.humus_std
-            a = a / m
-            w = w / m
-            e = e / m
-            n = n / m
-            h = h / m
-            a_std = a_std / m
-            w_std = w_std / m
-            e_std = e_std / m
-            n_std = n_std / m
-            h_std = h_std / m
-            if self.md.duration_unit == 'month' and \
-               self.md.litter_mode == 'yearly':
-                div = self.md.timestep_length / 12.
-            else:
-                div = 1.
-            tome[sc] = [m / div, m_std, a / div, a_std, w / div, w_std,
-                        e / div, e_std, n / div, n_std, h / div, h_std]
+            tome[sc] = [m , m_std, a / m, a_std / m, w / m, w_std / m,
+                        e / m, e_std / m, n / m, n_std / m, h / m, h_std / m]
 
     def _draw_from_distr(self, values, pairs, randomize):
         """
@@ -477,15 +473,18 @@ class ModelRunner(object):
 
     def _get_now(self, timestep):
         """
-        Uses a fixed simulation start date for calculating the month
+        Uses a fixed simulation start date for calculating the value date
         for each timestep
         """
         rd = relativedelta
         start = STARTDATE
-        if self.md.duration_unit == 'month':
-            now = start + rd(months=timestep*self.md.timestep_length)
-        elif self.md.duration_unit == 'year':
-            now = start + rd(years=timestep*self.md.timestep_length)
+        try:
+            if self.md.duration_unit == 'month':
+                now = start + rd(months=timestep*self.md.timestep_length)
+            elif self.md.duration_unit == 'year':
+                now = start + rd(years=timestep*self.md.timestep_length)
+        except ValueError:
+            now = -1
         return now
 
     def _map_timestep2timeind(self, timestep):
