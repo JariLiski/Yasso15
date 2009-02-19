@@ -639,7 +639,7 @@ class ModelRunner(object):
         dur = climate['duration']
         init = na(initial, dtype=f32)
         # convert input to yearly input in all cases
-        if self.md.litter_mode=='constant yearly':
+        if not self.simulation or self.md.litter_mode=='constant yearly':
             inf = na(self.infall[sc], dtype=f32)
         else:
             inf = na(self.infall[sc], dtype=f32) / dur
