@@ -16,7 +16,8 @@ from enthought.traits.ui.message import error
 # it should passed to the model (defined in the tuple)
 VALUESPEC = [('mass', None), ('acid', 0), ('water', 1), ('ethanol', 2),
              ('non_soluble', 3), ('humus', 4)]
-STARTDATE = date(2000, 1, 1)
+STARTDATE = date(2, 1, 1)
+STEADY_STATE_TIMESTEP = 10000.
 
 class ModelRunner(object):
     """
@@ -39,7 +40,42 @@ class ModelRunner(object):
         self._model_param = parr
         f.close()
 
+    def compute_steady_state(self, modeldata):
+        """
+        Solves the steady state for the system given the constant infall
+        """
+        self.simulation = False
+        self.md = modeldata
+        self.steady_state = numpy.empty(shape=(0,6), dtype=numpy.float32)
+        self.timemap = defaultdict(list)
+        samplesize = self.md.sample_size
+        timesteps = 1
+        self.timestep_length = STEADY_STATE_TIMESTEP
+        self.curr_yr_ind = 0
+        self.ml_run = True
+        self.infall = {}
+        self.initial_mode = 'zero'
+        timemsg = None
+        for j in range(samplesize):
+            self.draw = True
+            for k in range(timesteps):
+                climate = self._construct_climate(k)
+                self.ts_initial = 0.0
+                self.ts_infall = 0.0
+                self.__create_input(k)
+                for sizeclass in self.initial:
+                    initial, endstate = self._predict(sizeclass,
+                                                      self.initial[sizeclass],
+                                                      self.litter[sizeclass],
+                                                      climate)
+                    self._add_steady_state_result(sizeclass, endstate)
+                    self.draw = False
+            self.ml_run = False
+        self._steadystate2initial()
+        return self.ss_result
+
     def run_model(self, modeldata):
+        self.simulation = True
         self.md = modeldata
         self.c_stock = numpy.empty(shape=(0,9), dtype=numpy.float32)
         self.c_change = numpy.empty(shape=(0,9), dtype=numpy.float32)
@@ -48,15 +84,20 @@ class ModelRunner(object):
         samplesize = self.md.sample_size
         msg = "Simulating %d samples for %d timesteps" % (samplesize,
                                                     self.md.simulation_length)
-        progress = ProgressDialog(title="Simulation",
-                                  message=msg,
+        progress = ProgressDialog(title="Simulation", message=msg,
                                   max=samplesize, show_time=True,
                                   can_cancel=True)
         progress.open()
         timesteps = self.md.simulation_length
+        self.timestep_length = self.md.timestep_length
         self.curr_yr_ind = 0
         self.ml_run = True
         self.infall = {}
+        self.initial_mode = self.md.initial_mode
+        if self.initial_mode=='steady state':
+            self.initial_def = self.md.steady_state
+        else:
+            self.initial_def = self.md.initial_litter
         timemsg = None
         for j in range(samplesize):
             (cont, skip) = progress.update(j)
@@ -121,6 +162,17 @@ class ModelRunner(object):
             # if there are, add the new results to the existing ones
             self.c_stock[target[0],2:] = numpy.add(cs[target[0],2:], res[0,2:])
 
+    def _add_steady_state_result(self, sc, endstate):
+        """
+        Adds model result to the C stock
+
+        res -- model results augmented with timestep, iteration and
+               sizeclass data
+        """
+        res = numpy.concatenate(([float(sc)], endstate))
+        res.shape = (1, 6)
+        self.steady_state= numpy.append(self.steady_state, res, axis=0)
+
     def _calculate_c_change(self, s, ts):
         """
         The change of mass per component during the timestep
@@ -169,10 +221,19 @@ class ModelRunner(object):
             return -1
         cl['start month'] = now.month
         if self.md.duration_unit == 'month':
-            yeardur = self.md.timestep_length / 12.
+            if self.simulation:
+                yeardur = self.timestep_length / 12.
+            else:
+                yeardur = 1. / 12.
         elif self.md.duration_unit == 'year':
-            yeardur = self.md.timestep_length
-        cl['duration'] = yeardur
+            if self.simulation:
+                yeardur = self.timestep_length
+            else:
+                yeardur = 1.
+        if self.simulation:
+            cl['duration'] = yeardur
+        else:
+            cl['duration'] = STEADY_STATE_TIMESTEP
         if self.md.climate_mode == 'constant yearly':
             cl['rain'] = self.md.constant_climate.annual_rainfall
             cl['temp'] = self.md.constant_climate.mean_temperature
@@ -240,7 +301,7 @@ class ModelRunner(object):
         if len(years)==0:
             years = [0]
             firstyearweight = 1.0
-            if (sm + self.md.timestep_length)<12:
+            if (sm + self.timestep_length)<12:
                 addyear = False
         for ind in range(len(years)):
             if self.curr_yr_ind > len(self.md.yearly_climate) - 1:
@@ -276,8 +337,8 @@ class ModelRunner(object):
         self.litter = {}
         if timestep == 0:
             self.initial = {}
-            if self.md.initial_mode == 'non zero':
-                self._define_components(self.md.initial_litter, self.initial)
+            if self.initial_mode!='zero':
+                self._define_components(self.initial_def, self.initial)
         if self.md.litter_mode == 'constant yearly':
             self._define_components(self.md.constant_litter, self.litter)
         else:
@@ -480,9 +541,9 @@ class ModelRunner(object):
         start = STARTDATE
         try:
             if self.md.duration_unit == 'month':
-                now = start + rd(months=timestep*self.md.timestep_length)
+                now = start + rd(months=timestep*self.timestep_length)
             elif self.md.duration_unit == 'year':
-                now = start + rd(years=timestep*self.md.timestep_length)
+                now = start + rd(years=timestep*self.timestep_length)
         except ValueError:
             now = -1
         return now
@@ -494,12 +555,29 @@ class ModelRunner(object):
 
         timestep -- ordinal number of the simulation run timestep
         """
-        if timestep not in self.timemap:
+        if not self.simulation:
+            # for steady state computation include year 0 or first 12 months
+            if self.md.litter_mode=='monthly':
+                incl = range(1, 13)
+                infall = self.md.monthly_litter
+            elif self.md.litter_mode=='yearly':
+                incl = [0]
+                infall = self.md.yearly_litter
+            for ind in range(len(infall)):
+                if infall[ind].timestep in incl:
+                    self.timemap[timestep].append(ind)
+            if timestep not in self.timemap and self.md.litter_mode=='yearly':
+                # if no year 0 specification, use the one for year 1
+                for ind in range(len(infall)):
+                    if infall[ind].timestep==1:
+                        self.timemap[timestep].append(ind)
+        if self.simulation and timestep not in self.timemap:
+            # now for the simulation run
             now = self._get_now(timestep)
             if self.md.duration_unit=='month':
-                dur = relativedelta(months=self.md.timestep_length)
+                dur = relativedelta(months=self.timestep_length)
             elif self.md.duration_unit=='year':
-                dur = relativedelta(years=self.md.timestep_length)
+                dur = relativedelta(years=self.timestep_length)
             end = now + dur - relativedelta(days=1)
             if self.md.litter_mode=='monthly':
                 inputdur = relativedelta(months=1)
@@ -572,3 +650,47 @@ class ModelRunner(object):
         self.ts_infall += sum(self.infall[sc])
         return init, endstate
 
+    def _steadystate2initial(self):
+        """
+        Transfers the endstate masses to the initial state description of
+        masses and percentages with standard deviations. Std set to zero.
+        """
+        self.ss_result = []
+        ss = self.steady_state
+        sizeclasses = numpy.unique(ss[:,0])
+        for sc in sizeclasses:
+            criterium = (ss[:,0]==sc)
+            target = numpy.where(criterium)[0]
+            div = len(target)
+            masses = [ss[t, 1:].sum() for t in target]
+            mass_sum = sum(masses)
+            m = mass_sum / div
+            m_std = self._std(masses)
+            acids = ss[target, 1] / masses
+            a = acids.sum() / div
+            a_std = self._std(acids)
+            waters = ss[target, 2] / masses
+            w = waters.sum() / div
+            w_std = self._std(waters)
+            ethanols = ss[target, 3] / masses
+            e = ethanols.sum() / div
+            e_std = self._std(ethanols)
+            nonsolubles = ss[target, 4] / masses
+            n = nonsolubles.sum() / div
+            n_std = self._std(nonsolubles)
+            humuses = ss[target, 5] / masses
+            h = humuses.sum() / div
+            h_std = self._std(humuses)
+            self.ss_result.append([m, m_std, a, a_std, w, w_std,
+                                   e, e_std, n, n_std, h, h_std, sc])
+
+    def _std(self, data):
+        """
+        Computes the standard deviation
+        """
+        var = stats.var(data)
+        if var>0.0:
+            sd = math.sqrt(var)
+        else:
+            sd = 0.0
+        return sd

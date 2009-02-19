@@ -165,8 +165,9 @@ class Yasso(HasTraits):
     The Yasso model
     """
     # Initial condition
-    initial_mode = Enum(['non zero', 'zero'])
+    initial_mode = Enum(['non zero', 'zero', 'steady state'])
     initial_litter = List(trait=LitterComponent)
+    steady_state = List(trait=LitterComponent)
     # Litter input at each timestep in the simulation
     litter_mode = Enum(['yearly', 'constant yearly', 'monthly'])
     constant_litter = List(trait=LitterComponent)
@@ -206,7 +207,6 @@ class Yasso(HasTraits):
     save_data_file_event = Button('Save data file')
     save_as_file_event = Button('Save as...')
     modelrun_event = Button('Run model')
-    steady_state_event = Button('Solve steady state')
     save_result_event = Button('Save raw results...')
     save_moment_event = Button('Save moment results...')
     # and the results stored
@@ -347,8 +347,6 @@ class Yasso(HasTraits):
                 Item('duration_unit', style='custom', show_label=False,),
                 Item('simulation_length', width=-40, label='# of timesteps',),
                 Item('modelrun_event', show_label=False),
-                #Item('steady_state_event', show_label=False,
-                #     visible_when='litter_mode=="constant yearly"'),
                 spring,
                 ),
             HGroup(
@@ -536,12 +534,9 @@ class Yasso(HasTraits):
 ########################
 
     def _modelrun_event_fired(self):
-        self._run_model()
-
-    def _steady_state_event_fired(self):
-        self._run_model()
-
-    def _run_model(self):
+        if self.initial_mode=='steady state':
+            steady_state = self.yassorunner.compute_steady_state(self)
+            self._set_steady_state(steady_state)
         self._init_results()
         self.c_stock, self.c_change, self.co2_yield = \
                 self.yassorunner.run_model(self)
@@ -645,6 +640,18 @@ class Yasso(HasTraits):
             if not ok:
                 break
             self.initial_litter.append(obj)
+
+    def _set_steady_state(self, data):
+        errmsg = 'Litter components should contain: \n'\
+                      ' mass, mass std, acid, acid std, water, water std,\n'\
+                      ' ethanol, ethanol std, non soluble, non soluble std,'\
+                      '\n humus, humus std, size class'
+        self.steady_state = []
+        for vals in data:
+            ok, obj = self._load_litter_object(vals, errmsg)
+            if not ok:
+                break
+            self.steady_state.append(obj)
 
     def _set_constant_litter(self, data):
         errmsg = 'Litter components should contain: \n'\
