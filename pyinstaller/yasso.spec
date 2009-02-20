@@ -2,18 +2,6 @@
 
 import os
 import sys
-import enthought.traits.ui.wx
-
-base = os.path.dirname(enthought.traits.ui.wx.__file__)
-walker = os.walk(base)
-files = []
-for item in walker:
-    if not '.svn' in item[0]:
-        for file in item[2]:
-            if file != '__init__.py' and file.endswith('.py'):
-                filename = os.path.join(item[0], file)
-                #print 'adding', filename, 'to analysis...'
-                files.append(filename)
 
 import enthought
 base = os.path.abspath(os.path.join(os.path.dirname(enthought.__file__), '..', '..')) 
@@ -46,10 +34,10 @@ basefiles = [os.path.join(HOMEPATH,'support/_mountzlib.py'),
               '../modelcall.py',
               #os.path.join(HOMEPATH,'support/removeTK.py'),
               ]
-basefiles.extend(files)
 a = Analysis(basefiles,
              pathex=[''],
-             hookspath=[''])
+             hookspath=[''],
+             excludes=['enthought'])
 pyz = PYZ(a.pure)
         
 traits = PKG(Tree(traits), name='traits.pkg')

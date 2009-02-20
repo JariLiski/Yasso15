@@ -2,6 +2,13 @@ import carchive
 import sys
 import os
 import uuid
+import colorsys
+import shelve
+import wx
+import wx.html
+import wx.lib.scrolledpanel
+import cgi
+from wx import *
 
 #if hasattr(sys, 'frozen'):
 #    __file__ = ''.join((os.path.dirname(sys.executable), 'unpackMetadata.py'))
@@ -25,7 +32,11 @@ for pkg in pkgs:
         except Exception, mex:
             print mex
     mp = None
-    sys.path.insert(0, targetdir)    
+    sys.path.insert(0, targetdir) 
+    if pkg == 'traitsgui':
+        imagepath = os.path.join(targetdir, 'enthought', 'traits', 'ui', 'image', 'library')
+        os.environ['TRAITS_IMAGES'] = imagepath
+        os.putenv('TRAITS_IMAGES', imagepath)
     print "ok"
 
 from resource_path_override import ResourcePathOverride    
