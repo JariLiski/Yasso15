@@ -10,5 +10,5 @@ f.addScript("../yasso.py", gui_only=False)
 f.include_py = True
 f()    # starts the freezing process
 # copy the neeeded data files to the distribution dir
-shutil.copy('../yasso_param.txt', DISTDIR+'/')
+shutil.copy('../yasso_param.dat', DISTDIR+'/')
 shutil.copy('../demo_input.txt', DISTDIR+'/')
