@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
-from enthought.etsconfig import etsconfig
-etsconfig.ETSConfig.toolkit='wx'
-
 from collections import defaultdict
 import re
 import sys
