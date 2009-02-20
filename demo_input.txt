@@ -17,10 +17,8 @@
 [Constant litterfall]
 # mass, mass std, acid, acid std, water, water std, ethanol, ethanol std, 
 # non soluble, non soluble std, humus, humus std, size class
-#2.0 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0.0 0.0 0.0
+2.0 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0.0 0.0 0.0
 #2.0 0.1 0.6300 0.01 0.0300 0.01 0.0000 0.01 0.3300 0.01 0.0 0.0 9.0
-2.0 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
-2.0 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 7
 
 [Monthly litterfall]
 # month, mass, mass std, acid, acid std, water, water std, ethanol, ethanol std, 

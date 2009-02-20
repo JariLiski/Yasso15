@@ -236,7 +236,7 @@ class Yasso(HasTraits):
     # plot variables
     stock_plots = Instance(GridContainer)
     change_plots = Instance(GridContainer)
-    co2_plot = Instance(Plot)
+    co2_plot = Instance(GridContainer)
     p_timestep = Array()
     ps_tom = Array()
     ps_woody = Array()
@@ -264,102 +264,98 @@ class Yasso(HasTraits):
                 Item('save_data_file_event', show_label=False,),
                 Item('save_as_file_event', show_label=False,),
                 Item('data_file', style='readonly', show_label=False,),
-                spring,
                 ),
             HGroup(
                 Item('all_data', show_label=False, editor=CodeEditor(),
-                     width=300, height=400),
-                spring,
+                     has_focus=True,
+                     #width=300, height=400,
+                     ),
                 ),
             label='All data',
             ),
         VGroup(
-            VGroup(
-                HGroup(
-                    Item(name='initial_mode', style='custom',
-                         show_label=False,),
-                    spring,
-                    ),
-                HGroup(
-                    Item('initial_litter',
-                         visible_when='initial_mode=="non zero"',
-                         show_label=False, editor=litter_te,
-                         width=790, height=75,
-                        ),
-                    spring,
-                    ),
-                label='initial condition',
+            HGroup(
+                Item(label='Initial state: ', emphasized=True,),
+                Item(name='initial_mode', style='custom',
+                     show_label=False,),
                 ),
-            Group(
-                HGroup(
-                    Item('litter_mode', style='custom', show_label=False,),
-                    spring,
+            HGroup(
+                Item('initial_litter',
+                     visible_when='initial_mode=="non zero"',
+                     show_label=False, editor=litter_te,
+                     width=790, height=75,
                     ),
-                HGroup(
-                    Item('constant_litter',
-                         visible_when='litter_mode=="constant yearly"',
-                         show_label=False, editor=litter_te,
-                         width=790, height=75),
-                    Item('monthly_litter',
-                         visible_when='litter_mode=="monthly"',
-                         show_label=False, editor=timed_litter_te,
-                         width=790, height=75),
-                    Item('yearly_litter',
-                         visible_when='litter_mode=="yearly"',
-                         show_label=False, editor=timed_litter_te,
-                         width=790,height=75),
-                    spring,
-                    ),
-                label='Litter input'
                 ),
-            Group(
-                HGroup(
-                    Item('climate_mode', style='custom', show_label=False,),
-                    spring,
+            HGroup(
+                Item(label='Litter mode: ', emphasized=True,),
+                Item('litter_mode', style='custom', show_label=False,),
+                ),
+            HGroup(
+                Item('constant_litter',
+                     visible_when='litter_mode=="constant yearly"',
+                     show_label=False, editor=litter_te,
+                     full_size=False, springy=False,
+                     width=-790, height=-75),
+                Item('monthly_litter',
+                     visible_when='litter_mode=="monthly"',
+                     show_label=False, editor=timed_litter_te,
+                     full_size=False, springy=False,
+                     width=-790, height=-75),
+                Item('yearly_litter',
+                     visible_when='litter_mode=="yearly"',
+                     show_label=False, editor=timed_litter_te,
+                     full_size=False, springy=False,
+                     width=-790,height=-75),
+                ),
+            HGroup(
+                Item(label='Climate: ', emphasized=True,),
+                Item('climate_mode', style='custom', show_label=False,),
+                ),
+            HGroup(
+                VGroup(
+                    Item('object.constant_climate.annual_rainfall',
+                          style='readonly',),
+                    Item('object.constant_climate.mean_temperature',
+                          style='readonly',),
+                    Item('object.constant_climate.variation_amplitude',
+                          style='readonly',),
+                    show_border=True,
+                    visible_when='climate_mode=="constant yearly"'
                     ),
-                HGroup(
-                    VGroup(
-                        Item('object.constant_climate.annual_rainfall',
-                              style='readonly',),
-                        Item('object.constant_climate.mean_temperature',
-                              style='readonly',),
-                        Item('object.constant_climate.variation_amplitude',
-                              style='readonly',),
-                        show_border=True,
-                        visible_when='climate_mode=="constant yearly"'
-                        ),
-                    Item('monthly_climate', show_label=False,
-                         visible_when='climate_mode=="monthly"',
-                         editor=monthly_climate_te, width=200, height=75),
-                    Item('yearly_climate', show_label=False,
-                        visible_when='climate_mode=="yearly"',
-                        editor=yearly_climate_te, width=200, height=75),
-                    spring,
-                    ),
-                label='Climate'
+                Item('monthly_climate', show_label=False,
+                     visible_when='climate_mode=="monthly"',
+                     editor=monthly_climate_te, width=200, height=75),
+                Item('yearly_climate', show_label=False,
+                    visible_when='climate_mode=="yearly"',
+                    editor=yearly_climate_te, width=200, height=75),
                 ),
             label='Data to use',
             ),
         VGroup(
             HGroup(
                 Item('sample_size', width=-60),
+                ),
+            HGroup(
                 Item('timestep_length', width=-30,),
                 Item('duration_unit', style='custom', show_label=False,),
-                Item('simulation_length', width=-40, label='# of timesteps',),
-                Item('modelrun_event', show_label=False),
-                spring,
                 ),
             HGroup(
-                Item('result_type', style='custom', label='Show',),
+                Item('simulation_length', width=-40, label='# of timesteps',),
+                ),
+            HGroup(
+                Item('modelrun_event', show_label=False),
+                ),
+            HGroup(
+                Item('result_type', style='custom', label='Show',
+                     emphasized=True,),
                 Item('save_result_event', show_label=False,),
                 Item('save_moment_event', show_label=False,),
-                spring,
                 ),
             HGroup(
-                Item('presentation_type', style='custom', label='As'),
+                Item('presentation_type', style='custom', label='As',
+                     emphasized=True,),
                 Item('chart_type', style='custom', label='Chart type',
                      visible_when='presentation_type=="chart"'),
-                spring,
                 ),
             HGroup(
                 Item('c_stock', visible_when='result_type=="C stock" and \
@@ -372,20 +368,19 @@ class Yasso(HasTraits):
                       presentation_type=="array"', show_label=False,
                       editor=co2_yield_te,),
                 Item('stock_plots', editor=ComponentEditor(),
-                     show_label=False, width=800, height=800,
+                     show_label=False, width=600, height=600,
                      visible_when='result_type=="C stock" and \
                                   presentation_type=="chart"',),
                 Item('change_plots', editor=ComponentEditor(),
-                     show_label=False, width=800, height=800,
+                     show_label=False, width=600, height=600,
                      visible_when='result_type=="C change" and \
                                   presentation_type=="chart"',),
                 Item('co2_plot', editor=ComponentEditor(),
-                     show_label=False, width=400, height=400,
+                     show_label=False, width=600, height=600,
+                     #springy=False, full_size=False, resizable=False,
                      visible_when='result_type=="CO2 yield" and \
                                   presentation_type=="chart"',),
-                spring,
                 ),
-            spring,
             label='Model run',
             ),
         title     = 'Yasso 07',
@@ -415,10 +410,10 @@ class Yasso(HasTraits):
         if fn[1].lower() == 'python':
             exedir = os.path.split(sys.argv[0])[0]
             self.data_file = join(os.path.abspath(exedir), 'demo_input.txt')
-            parfile = join(os.path.abspath(exedir), 'yasso_param.txt')
+            parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
         else:
             self.data_file = join(fn[0], 'demo_input.txt')
-            parfile = join(fn[0], 'yasso_param.txt')
+            parfile = join(fn[0], 'yasso_param.dat')
         try:
             f = open(self.data_file)
             self._load_all_data(f)
@@ -429,8 +424,9 @@ class Yasso(HasTraits):
         if os.path.exists(parfile):
             self.yassorunner = ModelRunner(parfile)
         else:
-            errmsg = 'The model parameter file is missing. It must be in the '\
-                     'same directory as the program executable'
+            errmsg = 'The model parameter file yasso_param.dat is missing. '\
+                     'It must be in the same directory as the program '\
+                     'executable'
             error(errmsg, title='Error starting the program',
                   buttons=['OK'])
             sys.exit(-1)
@@ -465,7 +461,7 @@ class Yasso(HasTraits):
                 pl.value_range.set_bounds(min, max)
         container = GridContainer(stom, swoody, sa, sw, se, sn, sh)
         container.shape = (3,3)
-        container.spacing = (5,5)
+        container.spacing = (-15,-15)
         self.stock_plots = container
 
     def _create_change_plots(self, common_scale=False):
@@ -489,15 +485,16 @@ class Yasso(HasTraits):
                 pl.value_range.set_bounds(min, max)
         container = GridContainer(ctom, cwoody, ca, cw, ce, cn, ch)
         container.shape = (3,3)
-        container.spacing = (5,5)
+        container.spacing = (-15,-15)
         self.change_plots = container
 
     def _create_co2_plot(self):
         max = None
         min = 0
-        co2, max, min = self._create_plot(max, min, self.co2,
-                                           'CO2 yield')
-        self.co2_plot = co2
+        co2, max, min = self._create_plot(max, min, self.co2, 'CO2 yield')
+        container = GridContainer(co2, Plot(), Plot(), Plot())
+        container.shape= (2,2)
+        self.co2_plot = container
 
     def _create_plot(self, max, min, dataobj, title):
         x = dataobj[:,0]

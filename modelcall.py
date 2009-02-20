@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from __future__ import with_statement
+
 import y07
 import numpy
 import math
+import struct
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
@@ -18,6 +21,10 @@ VALUESPEC = [('mass', None), ('acid', 0), ('water', 1), ('ethanol', 2),
              ('non_soluble', 3), ('humus', 4)]
 STARTDATE = date(2, 1, 1)
 STEADY_STATE_TIMESTEP = 10000.
+# constants for the model parameters
+PARAM_SAMPLES = 100000
+PARAM_COUNT = 45
+PARAM_F = '45f'
 
 class ModelRunner(object):
     """
@@ -30,15 +37,7 @@ class ModelRunner(object):
         """
         Constructor.
         """
-        f = open(parfile)
-        first = [float(val) for val in f.readline().split()]
-        parr = numpy.array([first])
-        parr.shape = (1, len(first))
-        for line in f:
-            data = [float(val) for val in line.split()]
-            parr = numpy.append(parr, [data], axis=0)
-        self._model_param = parr
-        f.close()
+        self.parfile = parfile
 
     def compute_steady_state(self, modeldata):
         """
@@ -56,21 +55,11 @@ class ModelRunner(object):
         self.infall = {}
         self.initial_mode = 'zero'
         timemsg = None
-        for j in range(samplesize):
-            self.draw = True
-            for k in range(timesteps):
-                climate = self._construct_climate(k)
-                self.ts_initial = 0.0
-                self.ts_infall = 0.0
-                self.__create_input(k)
-                for sizeclass in self.initial:
-                    initial, endstate = self._predict(sizeclass,
-                                                      self.initial[sizeclass],
-                                                      self.litter[sizeclass],
-                                                      climate)
-                    self._add_steady_state_result(sizeclass, endstate)
-                    self.draw = False
-            self.ml_run = False
+        with open(self.parfile, 'rb') as self.f:
+            for j in range(samplesize):
+                self.draw = True
+                self._predict_steady_state(j)
+                self.ml_run = False
         self._steadystate2initial()
         return self.ss_result
 
@@ -99,33 +88,15 @@ class ModelRunner(object):
         else:
             self.initial_def = self.md.initial_litter
         timemsg = None
-        for j in range(samplesize):
-            (cont, skip) = progress.update(j)
-            if not cont or skip:
-                break
-            self.draw = True
-            for k in range(timesteps):
-                climate = self._construct_climate(k)
-                if climate==-1:
-                    timemsg = "Simulation extends too far into the future. "\
-                              "Couldn't allocate inputs to all timesteps"
+        with open(self.parfile, 'rb') as self.f:
+            for j in range(samplesize):
+                (cont, skip) = progress.update(j)
+                if not cont or skip:
                     break
-                self.ts_initial = 0.0
-                self.ts_infall = 0.0
-                self.__create_input(k)
-                for sizeclass in self.initial:
-                    initial, endstate = self._predict(sizeclass,
-                                                      self.initial[sizeclass],
-                                                      self.litter[sizeclass],
-                                                      climate)
-                    if k==0:
-                        self._add_c_stock_result(j, k, sizeclass, initial)
-                    self._add_c_stock_result(j, k+1, sizeclass, endstate)
-                    self._endstate2initial(sizeclass, endstate)
-                    self.draw = False
-                self._calculate_c_change(j, k+1)
-                self._calculate_co2_yield(j, k+1)
-            self.ml_run = False
+                self.draw = True
+                for k in range(timesteps):
+                    self._predict_timestep(j, k)
+                self.ml_run = False
         self._fill_moment_results()
         progress.update(samplesize)
         if timemsg is not None:
@@ -383,7 +354,7 @@ class ModelRunner(object):
                 e_std += mass * litter.ethanol_std
                 n_std += mass * litter.non_soluble_std
                 h_std += mass * litter.humus_std
-            tome[sc] = [m , m_std, a / m, a_std / m, w / m, w_std / m,
+            tome[sc] = [m , m_std / m, a / m, a_std / m, w / m, w_std / m,
                         e / m, e_std / m, n / m, n_std / m, h / m, h_std / m]
 
     def _draw_from_distr(self, values, pairs, randomize):
@@ -601,8 +572,9 @@ class ModelRunner(object):
 
     def _predict(self, sc, initial, litter, climate):
         """
-        processes the input data before calling the model and then
+        Processes the input data before calling the model and then
         runs the model
+
         sc -- non-woody / size of the woody material modelled
         initial -- system state at the beginning of the timestep
         litter -- litter input for the timestep
@@ -612,10 +584,15 @@ class ModelRunner(object):
         # model parameters
         if self.ml_run:
             # maximum likelihood estimates for the model parameters
-            self.param = self._model_param[0,:]
+            self.f.seek(0, 0)
+            packed = self.f.read(4*PARAM_COUNT)
+            self.param = struct.unpack(PARAM_F, packed)
         elif self.draw:
-            pind = random.randint(0, self._model_param.shape[0]-1)
-            self.param = self._model_param[pind,:]
+            which = random.randint(1, PARAM_SAMPLES - 1)
+            pos = which * PARAM_COUNT * 4
+            self.f.seek(pos, 0)
+            packed = self.f.read(4*PARAM_COUNT)
+            self.param = struct.unpack(PARAM_F, packed)
         # and mean values for the initial state and input
         if self.ml_run:
             initial = self._draw_from_distr(initial, VALUESPEC, False)
@@ -649,6 +626,45 @@ class ModelRunner(object):
         self.ts_initial += sum(initial)
         self.ts_infall += sum(self.infall[sc])
         return init, endstate
+
+    def _predict_timestep(self, sample, timestep):
+        """
+        Loops over all the size classes for the given sample and timestep
+        """
+        climate = self._construct_climate(timestep)
+        if climate==-1:
+            timemsg = "Simulation extends too far into the future."\
+                      " Couldn't allocate inputs to all timesteps"
+            return
+        self.ts_initial = 0.0
+        self.ts_infall = 0.0
+        self.__create_input(timestep)
+        for sizeclass in self.initial:
+            initial, endstate = self._predict(sizeclass,
+                                              self.initial[sizeclass],
+                                              self.litter[sizeclass], climate)
+            if timestep==0:
+                self._add_c_stock_result(sample, timestep, sizeclass, initial)
+            self._add_c_stock_result(sample, timestep+1, sizeclass, endstate)
+            self._endstate2initial(sizeclass, endstate)
+            self.draw = False
+        self._calculate_c_change(sample, timestep+1)
+        self._calculate_co2_yield(sample, timestep+1)
+
+    def _predict_steady_state(self, sample):
+        """
+        Makes a single prediction for the steady state for each sizeclass
+        """
+        climate = self._construct_climate(0)
+        self.ts_initial = 0.0
+        self.ts_infall = 0.0
+        self.__create_input(0)
+        for sizeclass in self.initial:
+            initial, endstate = self._predict(sizeclass,
+                                              self.initial[sizeclass],
+                                              self.litter[sizeclass], climate)
+            self._add_steady_state_result(sizeclass, endstate)
+            self.draw = False
 
     def _steadystate2initial(self):
         """
