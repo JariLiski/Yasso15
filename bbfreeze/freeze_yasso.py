@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-DISTDIR = 'yasso-0.1a2'
+DISTDIR = 'yasso-0.1a3'
 import shutil
 from bbfreeze import Freezer
 

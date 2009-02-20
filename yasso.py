@@ -411,7 +411,7 @@ class Yasso(HasTraits):
         self.simulation_length = 10
         join = os.path.join
         fn = os.path.split(sys.executable)
-        if fn[1].lower() == 'python':
+        if fn[1].lower().startswith('python'):
             exedir = os.path.split(sys.argv[0])[0]
             self.data_file = join(os.path.abspath(exedir), 'demo_input.txt')
             parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
