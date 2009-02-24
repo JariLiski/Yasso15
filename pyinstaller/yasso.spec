@@ -26,34 +26,35 @@ if sys_id == 'lin':
                 libfiles.append((file, target, 'BINARY'))
     except OSError, err:
         print err
-    try:
-        filelist = os.listdir('/usr/lib/atlas')
-        for file in filelist:
-            if re.search(r'3gf$', file):
-                target = file
-                try:
-                    target = os.readlink(os.path.join('/usr/lib/atlas', file))
-                except OSError:
-                    pass
-                if not target.startswith('/usr/lib/atlas'): 
-                    target = os.path.join('/usr/lib/atlas', file)
-                print 'Adding', target, 'as', file
-                libfiles.append((file, target, 'BINARY'))
-    except OSError, err:
-        print err
-    filelist = ['libf77blas.so.3gf', 'libcblas.so.3gf', 'libblas.so.3gf', 
-            'libatlas.so.3gf', 'libblas.so.3', 'libgslcblas.so.0']
-    for file in filelist:
-        if os.path.exists(os.path.join('/usr/lib', file)):
-            target = file
-            try:
-                target = os.readlink(os.path.join('/usr/lib', file))
-            except OSError:
-                pass
-            if not target.startswith('/usr/lib'): 
-                target = os.path.join('/usr/lib', file)
-            print 'Adding', target, 'as', file
-            libfiles.append((file, target, 'BINARY'))
+#THE FOLLOWING IS REQUIRED IF YOU INCLUDE SCIPY!
+#    try:
+#        filelist = os.listdir('/usr/lib/atlas')
+#        for file in filelist:
+#            if re.search(r'3gf$', file):
+#                target = file
+#                try:
+#                    target = os.readlink(os.path.join('/usr/lib/atlas', file))
+#                except OSError:
+#                    pass
+#                if not target.startswith('/usr/lib/atlas'): 
+#                    target = os.path.join('/usr/lib/atlas', file)
+#                print 'Adding', target, 'as', file
+#                libfiles.append((file, target, 'BINARY'))
+#    except OSError, err:
+#        print err
+#    filelist = ['libf77blas.so.3gf', 'libcblas.so.3gf', 'libblas.so.3gf', 
+#            'libatlas.so.3gf', 'libblas.so.3', 'libgslcblas.so.0']
+#    for file in filelist:
+#        if os.path.exists(os.path.join('/usr/lib', file)):
+#            target = file
+#            try:
+#                target = os.readlink(os.path.join('/usr/lib', file))
+#            except OSError:
+#                pass
+#            if not target.startswith('/usr/lib'): 
+#                target = os.path.join('/usr/lib', file)
+#            print 'Adding', target, 'as', file
+#            libfiles.append((file, target, 'BINARY'))
 
 for item in os.listdir(base):
     if item.startswith('Traits-'): 
