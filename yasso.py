@@ -335,15 +335,9 @@ class Yasso(HasTraits):
         VGroup(
             HGroup(
                 Item('sample_size', width=-60),
-                ),
-            HGroup(
-                Item('timestep_length', width=-30,),
+                Item('timestep_length', width=-60,),
                 Item('duration_unit', style='custom', show_label=False,),
-                ),
-            HGroup(
-                Item('simulation_length', width=-40, label='# of timesteps',),
-                ),
-            HGroup(
+                Item('simulation_length', width=-60, label='# of timesteps',),
                 Item('modelrun_event', show_label=False),
                 ),
             HGroup(

@@ -11,7 +11,7 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 import random
-from scipy.stats import stats
+import stats
 from enthought.pyface.api import ProgressDialog
 from enthought.traits.ui.message import error
 

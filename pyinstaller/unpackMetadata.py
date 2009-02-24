@@ -4,18 +4,14 @@ import os
 import uuid
 import colorsys
 import shelve
-import wx
-import wx.html
-import wx.lib.scrolledpanel
 import cgi
-from wx import *
 
 #if hasattr(sys, 'frozen'):
 #    __file__ = ''.join((os.path.dirname(sys.executable), 'unpackMetadata.py'))
 
 this = carchive.CArchive(sys.executable)
 archives = os.environ['_MEIPASS2']
-pkgs = ['traits', 'traitswx', 'chaco', 'enthought', 'enable', 'traitsgui']
+pkgs = ['wx', 'traits', 'traitswx', 'chaco', 'enthought', 'enable', 'traitsgui']
 for pkg in pkgs:
     mp = this.openEmbedded('%s.pkg' % pkg)
     targetdir = os.path.join(archives,pkg)
@@ -39,9 +35,17 @@ for pkg in pkgs:
         os.putenv('TRAITS_IMAGES', imagepath)
     print "ok"
 
+import code, keyword
+import wx
+import wx.html
+import wx.lib.scrolledpanel
+from wx import *
+
 from resource_path_override import ResourcePathOverride    
 resource_override = ResourcePathOverride(archives)
 
 #DEBUG        
 #print "Files are at", archives 
+#print "sys.path is:"
+#for i in sys.path: print i
 #raw_input("press enter to continue...")
