@@ -79,7 +79,6 @@ class ModelRunner(object):
         progress.open()
         timesteps = self.md.simulation_length
         self.timestep_length = self.md.timestep_length
-        self.curr_yr_ind = 0
         self.ml_run = True
         self.infall = {}
         self.initial_mode = self.md.initial_mode
@@ -94,6 +93,7 @@ class ModelRunner(object):
                 if not cont or skip:
                     break
                 self.draw = True
+                self.curr_yr_ind = 0
                 for k in range(timesteps):
                     self._predict_timestep(j, k)
                 self.ml_run = False
@@ -184,25 +184,17 @@ class ModelRunner(object):
     def _construct_climate(self, timestep):
         """
         From the different ui options, creates a unified climate description
-        (type, start month, duration, temperature, rainfall, amplitude)
+        (type, duration, temperature, rainfall, amplitude)
         """
         cl = {}
-        now = self._get_now(timestep)
+        now, end = self._get_now_and_end(timestep)
         if now==-1:
             return -1
-        cl['start month'] = now.month
-        if self.md.duration_unit == 'month':
-            if self.simulation:
-                yeardur = self.timestep_length / 12.
-            else:
-                yeardur = 1. / 12.
-        elif self.md.duration_unit == 'year':
-            if self.simulation:
-                yeardur = self.timestep_length
-            else:
-                yeardur = 1.
         if self.simulation:
-            cl['duration'] = yeardur
+            if self.md.duration_unit == 'month':
+                cl['duration'] = self.timestep_length / 12.
+            elif self.md.duration_unit == 'year':
+                cl['duration'] = self.timestep_length
         else:
             cl['duration'] = STEADY_STATE_TIMESTEP
         if self.md.climate_mode == 'constant yearly':
@@ -210,29 +202,29 @@ class ModelRunner(object):
             cl['temp'] = self.md.constant_climate.mean_temperature
             cl['amplitude'] = self.md.constant_climate.variation_amplitude
         elif self.md.climate_mode == 'monthly':
-            cl = self._construct_monthly_climate(cl, now.month, yeardur * 12.)
+            cl = self._construct_monthly_climate(cl, now, end)
         elif self.md.climate_mode == 'yearly':
-            cl = self._construct_yearly_climate(cl, now.month, now.year,yeardur)
+            cl = self._construct_yearly_climate(cl, now, end)
         return cl
 
-    def _construct_monthly_climate(self, cl, sm, dur):
+    def _construct_monthly_climate(self, cl, now, end):
         """
         Summarizes the monthly climate data into rain, temp and amplitude
-        given the start month and duration
+        given the start and end dates
 
         cl -- climate dictionary
-        sm -- start month
-        dur -- timestep duration in months
+        now -- start date
+        end -- end date
         """
-        if dur >= 12:
+        if self.md.duration_unit=='month' and self.timestep_length >= 12:
             months = range(0,12)
         else:
-            em = sm + int(dur)
-            if em > 12:
-                overflow = em - 12
-                months = range(sm,12) + range(0,overflow)
+            sm = now.month
+            em = end.month
+            if em<sm:
+                months = range(sm - 1, 12) + range(0, em)
             else:
-                months = range(sm-1, em-1)
+                months = range(sm - 1, em)
         rain = 0.0
         temp = 0.0
         maxtemp = 0.0
@@ -240,39 +232,50 @@ class ModelRunner(object):
         for m in months:
             mtemp = self.md.monthly_climate[m].temperature
             temp += mtemp
-            if mtemp < mintemp: mintemp = mtemp
-            if mtemp > maxtemp: maxtemp = mtemp
-            rain = self.md.monthly_climate[m].rainfall
+            if mtemp < mintemp:
+                mintemp = mtemp
+            if mtemp > maxtemp:
+                maxtemp = mtemp
+            rain += self.md.monthly_climate[m].rainfall
         cl['rain'] = rain / len(months)
         cl['temp'] = temp / len(months)
         cl['amplitude'] = (maxtemp - mintemp) / 2.0
         return cl
 
-    def _construct_yearly_climate(self, cl, sm, sy, dur):
+    def _construct_yearly_climate(self, cl, now, end):
         """
         Summarizes the yearly climate data into rain, temp and amplitude
-        given the start month, start year and duration. Rotates the yearly
+        given the start and end dates. Rotates the yearly
         climate definition round if shorter than the simulation length.
 
         cl -- climate dictionary
-        sm -- start month
-        sy -- start year
-        dur -- timestep duration in years
+        now -- start date
+        end -- end year
         """
-        weight = 1.0
-        firstyearweight = (13. - sm) / 12.
-        lastyearweight = 1.0 - firstyearweight
+        if self.simulation:
+            years = range(now.year, end.year + 1)
+            if len(years)>1:
+                lastord = float(date(now.year, 12, 31).timetuple()[7])
+                noword = float(now.timetuple()[7])
+                firstyearweight = (lastord - noword) / lastord
+                lastord = float(date(end.year, 12, 31).timetuple()[7])
+                endord = float(end.timetuple()[7])
+                lastyearweight = endord / lastord
+        else:
+            # for steady state computation all years used to define climate
+            years = range(len(self.md.yearly_climate))
+            firstyearweight = 1.0
+            lastyearweight = 1.0
+            self.curr_yr_ind = 0
         rain = 0.0
         temp = 0.0
         ampl = 0.0
-        years = range(sy, sy + int(dur))
         addyear = True
-        # the following handles the case when simulation timeste
+        # the following handles the case when simulation timestep
         # is in months but climate in years
-        if len(years)==0:
-            years = [0]
+        if len(years)==1:
             firstyearweight = 1.0
-            if (sm + self.timestep_length)<12:
+            if now.year==end.year and not(end.month==12 and end.day==31):
                 addyear = False
         for ind in range(len(years)):
             if self.curr_yr_ind > len(self.md.yearly_climate) - 1:
@@ -503,21 +506,28 @@ class ModelRunner(object):
                     self.md.co2 = numpy.append(self.md.co2, res, axis=0)
 
 
-    def _get_now(self, timestep):
+    def _get_now_and_end(self, timestep):
         """
         Uses a fixed simulation start date for calculating the value date
-        for each timestep
+        for each timestep and its end date
         """
         rd = relativedelta
         start = STARTDATE
+        if self.simulation:
+            tslength = self.timestep_length
+        else:
+            tslength = 1
         try:
             if self.md.duration_unit == 'month':
-                now = start + rd(months=timestep*self.timestep_length)
+                now = start + rd(months=timestep * tslength)
+                end = now + rd(months=tslength)
             elif self.md.duration_unit == 'year':
-                now = start + rd(years=timestep*self.timestep_length)
+                now = start + rd(years=timestep * tslength)
+                end = now + rd(years=tslength) - rd(days=1)
         except ValueError:
             now = -1
-        return now
+            end = -1
+        return now, end
 
     def _map_timestep2timeind(self, timestep):
         """
@@ -526,7 +536,7 @@ class ModelRunner(object):
 
         timestep -- ordinal number of the simulation run timestep
         """
-        if not self.simulation:
+        if not self.simulation and timestep not in self.timemap:
             # for steady state computation include year 0 or first 12 months
             if self.md.litter_mode=='monthly':
                 incl = range(1, 13)
@@ -544,7 +554,7 @@ class ModelRunner(object):
                         self.timemap[timestep].append(ind)
         if self.simulation and timestep not in self.timemap:
             # now for the simulation run
-            now = self._get_now(timestep)
+            now, end = self._get_now_and_end(timestep)
             if self.md.duration_unit=='month':
                 dur = relativedelta(months=self.timestep_length)
             elif self.md.duration_unit=='year':
@@ -604,11 +614,7 @@ class ModelRunner(object):
             # initial values drawn randomly only for the "draw" run
             # i.e. for the first run after maximum likelihood run
             initial = self._draw_from_distr(initial, VALUESPEC, False)
-            if self.md.litter_mode!='constant yearly':
-                # if litter input is a timeseries, drawn at each step
-                # for constant input the values drawn at the beginning used
-                self.infall[sc] = self._draw_from_distr(litter, VALUESPEC,
-                                                        True)
+            self.infall[sc] = self._draw_from_distr(litter, VALUESPEC, True)
         # climate
         na = numpy.array
         f32 = numpy.float32

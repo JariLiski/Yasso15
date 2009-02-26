@@ -1,3 +1,6 @@
+# This file is originally in scipy.stats as stats.py
+#  the content of this module is shortened for Yasso use
+#
 # Copyright (c) Gary Strangman.  All rights reserved
 #
 # Disclaimer
@@ -22,8 +25,6 @@ stats.py module
 #################################################
 #######  Written by:  Gary Strangman  ###########
 #################################################
-####### Shortened content for Yasso use ########
-################################################
 
 A collection of basic statistical functions for python.  The function
 names appear below.

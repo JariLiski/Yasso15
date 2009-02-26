@@ -311,6 +311,12 @@ class Yasso(HasTraits):
                     Item('climate_mode', style='custom',show_label=False,),
                     ),
                 HGroup(
+                    Item('monthly_climate', show_label=False,
+                         visible_when='climate_mode=="monthly"',
+                         editor=monthly_climate_te, width=200, height=75),
+                    Item('yearly_climate', show_label=False,
+                        visible_when='climate_mode=="yearly"',
+                        editor=yearly_climate_te, width=200, height=75),
                     VGroup(
                         Item('object.constant_climate.annual_rainfall',
                               style='readonly',),
@@ -321,12 +327,6 @@ class Yasso(HasTraits):
                         show_border=True,
                         visible_when='climate_mode=="constant yearly"'
                         ),
-                    Item('monthly_climate', show_label=False,
-                         visible_when='climate_mode=="monthly"',
-                         editor=monthly_climate_te, width=200, height=75),
-                    Item('yearly_climate', show_label=False,
-                        visible_when='climate_mode=="yearly"',
-                        editor=yearly_climate_te, width=200, height=75),
                     ),
                 label='Climate',
                 ),
