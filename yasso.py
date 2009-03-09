@@ -54,7 +54,7 @@ class TimedLitterComponent(HasTraits):
     non_soluble_std = Float()
     humus = Range(low=0.0, high=100.0)
     humus_std = Float()
-    size_class = Float(default=0.0)
+    size_class = Float(default_value=0.0)
 
 class YearlyClimate(HasTraits):
     timestep = Int()
@@ -83,7 +83,7 @@ monthly_climate_te = TabularEditor(
     )
 
 class YearlyClimateAdapter(TabularAdapter):
-    columns = [('mean temp', 'mean_temperature'),
+    columns = [('timestep', 'timestep'), ('mean temp', 'mean_temperature'),
                ('annual rainfall', 'annual_rainfall'),
                ('temp variation amplitude', 'variation_amplitude')]
     font  = 'Arial 9'
@@ -170,6 +170,7 @@ class Yasso(HasTraits):
     constant_litter = List(trait=LitterComponent)
     monthly_litter = List(trait=TimedLitterComponent)
     yearly_litter = List(trait=TimedLitterComponent)
+    woody_size_limit = Float(default_value=3.0)
     # Climate definition for the simulation
     climate_mode = Enum(['yearly', 'constant yearly', 'monthly'])
     constant_climate = YearlyClimate()
@@ -333,13 +334,21 @@ class Yasso(HasTraits):
             label='Data to use',
             ),
         VGroup(
-            HGroup(
-                Item('sample_size', width=-60),
-                Item('timestep_length', width=-60,),
-                Item('duration_unit', style='custom', show_label=False,),
-                Item('simulation_length', width=-60, label='# of timesteps',),
-                Item('modelrun_event', show_label=False),
-                ),
+            Group(
+                HGroup(
+                    Item('sample_size', width=-45),
+                    Item('simulation_length', width=-45,
+                         label='Number of timesteps',),
+                    Item('timestep_length', width=-45,),
+                    Item('duration_unit', style='custom',
+                         show_label=False,),
+                    ),
+                HGroup(
+                    Item('woody_size_limit', width=-45),
+                    Item('modelrun_event', show_label=False),
+                    ),
+                show_border=True
+            ),
             HGroup(
                 Item('result_type', style='custom', label='Show',
                      emphasized=True,),
@@ -702,7 +711,8 @@ class Yasso(HasTraits):
         self.yearly_climate = []
         for vals in data:
             if len(vals)==4:
-                obj = YearlyClimate(mean_temperature=vals[1],
+                obj = YearlyClimate(timestep=int(vals[0]),
+                          mean_temperature=vals[1],
                           annual_rainfall=vals[2],
                           variation_amplitude=vals[3])
                 self.yearly_climate.append(obj)
@@ -796,23 +806,17 @@ class Yasso(HasTraits):
                        ('ethanol', self.stock_ethanol),
                        ('non_soluble', self.stock_non_soluble),
                        ('humus', self.stock_humus))
-                header = '# C stock\n# component, time step, '\
-                         'mean, mode, var, skewness, kurtosis, '\
-                         '95% confidence lower limit, 95% upper limit'
             elif self.result_type=='C change':
                 comps = (('tom', self.change_tom), ('woody', self.change_woody),
                        ('acid', self.change_acid), ('water', self.change_water),
                        ('ethanol', self.change_ethanol),
                        ('non_soluble', self.change_non_soluble),
                        ('humus', self.change_humus))
-                header = '# C change\n# component, time step, '\
-                         'mean, mode, var, skewness, kurtosis, '\
-                         '95% confidence lower limit, 95% upper limit'
             elif self.result_type=='CO2 yield':
-                comps = (('CO2', self.co2))
-                header = '# CO2 yield\n# component, time step, '\
-                         'mean, mode, var, skewness, kurtosis, '\
-                         '95% confidence lower limit, 95% upper limit'
+                comps = (('CO2', self.co2),)
+            header = '# component, time step, mean, mode, var, skewness, '\
+                     'kurtosis, 95% confidence lower limit, 95% upper limit'
+            header = self._make_result_header(header)
             f.write(header+'\n')
             for comp, res in comps:
                 for row in res:
@@ -838,6 +842,7 @@ class Yasso(HasTraits):
             elif self.result_type=='CO2 yield':
                 res = self.co2_yield
                 header = '# sample, time step, CO2 yield'
+            header = self._make_result_header(header)
             f.write(header+'\n')
             for row in res:
                 resrow = ''
@@ -845,6 +850,23 @@ class Yasso(HasTraits):
                     resrow = ' '.join([resrow, str(num)])
                 f.write(resrow+'\n')
             f.close()
+
+    def _make_result_header(self, header):
+        '''Adds metadata about the results into the header'''
+        hstr = '#########################################################\n'
+        hstr += '# ' + self.result_type + '\n'
+        hstr += '#########################################################\n'
+        hstr += '# Datafile used: ' + self.data_file + '\n'
+        hstr += '# Settings:\n'
+        hstr += '#   initial state: ' + self.initial_mode + '\n'
+        hstr += '#   litter input: ' + self.litter_mode + '\n'
+        hstr += '#   climate: ' + self.climate_mode + '\n'
+        hstr += '#   sample size: ' + str(self.sample_size) + '\n'
+        hstr += ''.join(['#   timestep length: ', str(self.timestep_length),
+                         ' (', self.duration_unit, ')\n'])
+        hstr += '#   woody litter size limit: ' + str(self.woody_size_limit)+'\n'
+        hstr += '#\n'
+        return hstr + header
 
     def _init_results(self):
         """

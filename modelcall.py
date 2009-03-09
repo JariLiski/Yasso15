@@ -114,7 +114,7 @@ class ModelRunner(object):
         cs = self.c_stock
         # if sizeclass is non-zero, all the components are added together
         # to get the mass of wood
-        if sc > 0:
+        if sc>=self.md.woody_size_limit:
             totalom = endstate.sum()
             woody = totalom
         else:
@@ -262,8 +262,8 @@ class ModelRunner(object):
                 endord = float(end.timetuple()[7])
                 lastyearweight = endord / lastord
         else:
-            # for steady state computation all years used to define climate
-            years = range(len(self.md.yearly_climate))
+            # for steady state computation year 0 or 1 used
+            years = [0]
             firstyearweight = 1.0
             lastyearweight = 1.0
             self.curr_yr_ind = 0
@@ -271,18 +271,23 @@ class ModelRunner(object):
         temp = 0.0
         ampl = 0.0
         addyear = True
-        # the following handles the case when simulation timestep
-        # is in months but climate in years
         if len(years)==1:
             firstyearweight = 1.0
             if now.year==end.year and not(end.month==12 and end.day==31):
                 addyear = False
+        maxind = len(self.md.yearly_climate) - 1
         for ind in range(len(years)):
-            if self.curr_yr_ind > len(self.md.yearly_climate) - 1:
+            if self.curr_yr_ind > maxind:
                 self.curr_yr_ind = 0
             cy = self.md.yearly_climate[self.curr_yr_ind]
+            if self.simulation and cy.timestep==0:
+                # timestep 0 is used only for steady state calculation
+                self.curr_yr_ind += 1
+                if self.curr_yr_ind <= maxind:
+                    cy = self.md.yearly_climate[self.curr_yr_ind]
             if ind == 0:
                 weight = firstyearweight
+                passedzero = False
             elif ind == len(years) - 1:
                 weight = lastyearweight
             else:
@@ -291,7 +296,7 @@ class ModelRunner(object):
             rain += weight * cy.annual_rainfall
             ampl += weight * cy.variation_amplitude
             if addyear:
-                self.curr_yr_ind +=1
+                self.curr_yr_ind += 1
         # backs one year back, if the last weight was less than 1
         if weight < 1.0 and addyear:
             self.curr_yr_ind -= 1
