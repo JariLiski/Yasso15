@@ -47,6 +47,7 @@ class ModelRunner(object):
         self.md = modeldata
         self.steady_state = numpy.empty(shape=(0,6), dtype=numpy.float32)
         self.timemap = defaultdict(list)
+        self.area_timemap = defaultdict(list)
         samplesize = self.md.sample_size
         timesteps = 1
         self.timestep_length = STEADY_STATE_TIMESTEP
@@ -70,6 +71,7 @@ class ModelRunner(object):
         self.c_change = numpy.empty(shape=(0,9), dtype=numpy.float32)
         self.co2_yield = numpy.empty(shape=(0,3), dtype=numpy.float32)
         self.timemap = defaultdict(list)
+        self.area_timemap = defaultdict(list)
         samplesize = self.md.sample_size
         msg = "Simulating %d samples for %d timesteps" % (samplesize,
                                                     self.md.simulation_length)
@@ -399,10 +401,11 @@ class ModelRunner(object):
         sample[pairs[waterind][1]] = remainingmass
         return sample
 
-    def _endstate2initial(self, sizeclass, endstate):
+    def _endstate2initial(self, sizeclass, endstate, timestep):
         """
         Transfers the endstate masses to the initial state description of
         masses and percentages with standard deviations. Std set to zero.
+        Also scales the total mass with the relative area change if defined.
         """
         mass = endstate.sum()
         acid = endstate[0] / mass
@@ -410,6 +413,11 @@ class ModelRunner(object):
         ethanol = endstate[2] / mass
         nonsoluble = endstate[3] / mass
         humus = endstate[4] / mass
+        # area change scaling
+        if self.md.litter_mode in ('monthly', 'yearly'):
+            for listind in self.area_timemap[timestep]:
+                change = self.md.area_change[listind]
+                mass = mass * (1. + change.rel_change)
         self.initial[sizeclass] = [mass, 0., acid, 0., water, 0., ethanol, 0.,
                                    nonsoluble, 0., humus, 0.]
 
@@ -574,16 +582,31 @@ class ModelRunner(object):
             # the first mont/year will have index number 1, hence deduce 1 m/y
             start = STARTDATE - inputdur
             for ind in range(len(infall)):
-                relamount = int(infall[ind].timestep)
-                if self.md.litter_mode=='monthly':
-                    inputdate = start + relativedelta(months=relamount)
-                else:
-                    inputdate = start + relativedelta(years=relamount)
-                if inputdate>=now and inputdate<=end:
+                incl = self._test4inclusion(ind, infall, now, start, end)
+                if incl:
                     self.timemap[timestep].append(ind)
+            # check for possible area reductions to be mapped
+            areachange = self.md.area_change
+            for ind in range(len(areachange)):
+                incl = self._test4inclusion(ind, areachange, now, start, end)
+                if incl:
+                    self.area_timemap[timestep].append(ind)
         if timestep not in self.timemap:
             self.timemap[timestep] = []
+        if timestep not in self.area_timemap:
+            self.area_timemap[timestep] = []
         return self.timemap[timestep]
+
+    def _test4inclusion(self, ind, dataarray, now, start, end):
+        relamount = int(dataarray[ind].timestep)
+        if self.md.litter_mode=='monthly':
+            inputdate = start + relativedelta(months=relamount)
+        else:
+            inputdate = start + relativedelta(years=relamount)
+        if inputdate>=now and inputdate<=end:
+            return True
+        else:
+            return False
 
     def _predict(self, sc, initial, litter, climate):
         """
@@ -657,7 +680,7 @@ class ModelRunner(object):
             if timestep==0:
                 self._add_c_stock_result(sample, timestep, sizeclass, initial)
             self._add_c_stock_result(sample, timestep+1, sizeclass, endstate)
-            self._endstate2initial(sizeclass, endstate)
+            self._endstate2initial(sizeclass, endstate, timestep)
             self.draw = False
         self._calculate_c_change(sample, timestep+1)
         self._calculate_co2_yield(sample, timestep+1)

@@ -56,6 +56,10 @@ class TimedLitterComponent(HasTraits):
     humus_std = Float()
     size_class = Float(default_value=0.0)
 
+class AreaChange(HasTraits):
+    timestep = Int()
+    rel_change = Float()
+
 class YearlyClimate(HasTraits):
     timestep = Int()
     mean_temperature = Float()
@@ -109,6 +113,17 @@ class LitterAdapter(TabularAdapter):
 
 litter_te = TabularEditor(
     adapter = LitterAdapter(),
+    editable = False,
+    )
+
+class ChangeAdapter(TabularAdapter):
+    columns = [('timestep', 'timestep'),
+               ('relative change in area', 'rel_change')]
+    font = 'Arial 9'
+    default_value = AreaChange()
+
+change_te = TabularEditor(
+    adapter = ChangeAdapter(),
     editable = False,
     )
 
@@ -171,6 +186,7 @@ class Yasso(HasTraits):
     monthly_litter = List(trait=TimedLitterComponent)
     yearly_litter = List(trait=TimedLitterComponent)
     woody_size_limit = Float(default_value=3.0)
+    area_change = List(trait=AreaChange)
     # Climate definition for the simulation
     climate_mode = Enum(['yearly', 'constant yearly', 'monthly'])
     constant_climate = YearlyClimate()
@@ -304,6 +320,15 @@ class Yasso(HasTraits):
                          show_label=False, editor=timed_litter_te,
                          full_size=False, springy=False,
                          width=-790,height=-75),
+                    ),
+                HGroup(
+                    Item('area_change',
+                         visible_when='litter_mode=="yearly" or '\
+                                      'litter_mode=="monthly"',
+                         show_label=False, editor=change_te,
+                         full_size=False, springy=False,
+                         width=-150,height=-75),
+                    spring,
                     ),
                 label='Litter input',
                 ),
@@ -591,7 +616,7 @@ class Yasso(HasTraits):
         Loads all data from a single file. Data in sections defined by [name],
         data in whitespace delimited rows
         """
-        sectionp = re.compile('\[(\w+\s\w+)\]')
+        sectionp = re.compile('\[([\w+\s*]+)\]')
         datap = re.compile('[+-Ee\d+\.\d*\s*]+')
         active = None
         data = defaultdict(list)
@@ -615,6 +640,8 @@ class Yasso(HasTraits):
                 self._set_monthly_litter(vallist)
             elif section=='Yearly litterfall':
                 self._set_yearly_litter(vallist)
+            elif section=='Relative area change':
+                self._set_area_change(vallist)
             elif section=='Constant climate':
                 self._set_constant_climate(vallist)
             elif section=='Monthly climate':
@@ -694,16 +721,30 @@ class Yasso(HasTraits):
 
     def _set_yearly_litter(self, data):
         errmsg = 'Timed litter components should contain: \n'\
-                      ' timestep, mass, mass std, acid, acid std, water, '\
-                      'water std,\n'\
-                      ' ethanol, ethanol std, non soluble, non soluble std,'\
-                      '\n humus, humus std, size class'
+                  ' timestep, mass, mass std, acid, acid std, water, '\
+                  'water std,\n'\
+                  ' ethanol, ethanol std, non soluble, non soluble std,'\
+                  '\n humus, humus std, size class'
         self.yearly_litter = []
         for vals in data:
             ok, obj = self._load_litter_object(vals, errmsg, True)
             if not ok:
                 break
             self.yearly_litter.append(obj)
+
+    def _set_area_change(self, data):
+        errmsg = 'Area change should contain: \n'\
+                 ' timestep, relative area change'
+        self.area_change = []
+        for vals in data:
+            if len(vals)==2:
+                obj = AreaChange(timestep=int(vals[0]),
+                          rel_change=vals[1])
+                self.area_change.append(obj)
+            elif vals!=[]:
+                error(errmsg, title='error reading data',
+                      buttons=['OK'])
+                break
 
     def _set_yearly_climate(self, data):
         errmsg = 'Yearly climate should contain: timestep, mean temperature,\n'\

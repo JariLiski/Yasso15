@@ -57,6 +57,11 @@
 11 5.1 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
 12 5.7 0.1 0.3134 0.01 0.3715 0.01 0.0674 0.01 0.2477 0.01 0 0 0
 
+[Relative area change]
+# Timestep, relative change in area
+5 -0.7
+7 -0.9
+
 [Constant climate]
 # mean temperature, precipitation, temperature variation amplitude
 3.8 822.0 11.4
