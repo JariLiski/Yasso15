@@ -291,18 +291,18 @@ class Yasso(HasTraits):
             VGroup(
                 HGroup(
                     Item(name='initial_mode', style='custom',
-                         show_label=False,),
+                         label='Initial state:', emphasized=True,),
                     ),
                 Item('initial_litter',
                      visible_when='initial_mode=="non zero"',
                      show_label=False, editor=litter_te,
                      width=790, height=75,
                 ),
-                label='Initial state',
                 ),
             VGroup(
                 HGroup(
-                    Item('litter_mode', style='custom', show_label=False,),
+                    Item('litter_mode', style='custom',
+                         label='Litter input:', emphasized=True,),
                     ),
                 HGroup(
                     Item('constant_litter',
@@ -330,11 +330,11 @@ class Yasso(HasTraits):
                          width=-150,height=-75),
                     spring,
                     ),
-                label='Litter input',
                 ),
             VGroup(
                 HGroup(
-                    Item('climate_mode', style='custom',show_label=False,),
+                    Item('climate_mode', style='custom',
+                        label='Climate:', emphasized=True,),
                     ),
                 HGroup(
                     Item('monthly_climate', show_label=False,
@@ -354,7 +354,6 @@ class Yasso(HasTraits):
                         visible_when='climate_mode=="constant yearly"'
                         ),
                     ),
-                label='Climate',
                 ),
             label='Data to use',
             ),
