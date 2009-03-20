@@ -10,7 +10,7 @@ from datetime import date
 from enthought.traits.api import Array, Button, Enum, Float, HasTraits,\
     Instance, Int, List, Property, Range, Str
 from enthought.traits.ui.api import CodeEditor, Group, HGroup, VGroup, Item,\
-        Label, spring, TabularEditor, VFold, View
+        Label, spring, TabularEditor, View
 from enthought.traits.ui.menu import \
     UndoAction, RedoAction, RevertAction, CloseAction, \
     Menu, MenuBar, NoButtons
@@ -55,7 +55,7 @@ Climate definition can be one of
 <ul>2) yearly constant values</ul>
 <ul>3) monthly time series</ul>
 <p>In case of the time series, the series will be applied several times if the simulation run is longer than the defined series; i.e., when the last values from the series are used in the simulation, for the next step the values from the beginning of the climate series will be used.</p>
-<p>Note that the <b>monthly time series</b> is limited to 12 months; i.e., it is used to define the climate variation within a single year, for a simulation covering several years, the same climate is applied repeatedly.
+<p>Note that the <b>monthly time series</b> must be a multiple of 12 months; i.e., the series must cover full years.</p>
 <p>For <b>steady state prediction</b>, yearly climate from timestep 0 is used if defined, otherwise the climate from step 1 will be used.
 """
 SAMPLE_SIZE_HELP = """
@@ -247,20 +247,7 @@ class Yasso(HasTraits):
     # Climate definition for the simulation
     climate_mode = Enum(['yearly', 'constant yearly', 'monthly'])
     constant_climate = YearlyClimate()
-    monthly_climate = List(trait=MonthlyClimate,
-            value=[MonthlyClimate(month=1),
-                   MonthlyClimate(month=2),
-                   MonthlyClimate(month=3),
-                   MonthlyClimate(month=4),
-                   MonthlyClimate(month=5),
-                   MonthlyClimate(month=6),
-                   MonthlyClimate(month=7),
-                   MonthlyClimate(month=8),
-                   MonthlyClimate(month=9),
-                   MonthlyClimate(month=10),
-                   MonthlyClimate(month=11),
-                   MonthlyClimate(month=12)]
-            )
+    monthly_climate = List(trait=MonthlyClimate)
     yearly_climate = List(trait=YearlyClimate)
     # All data as text
     all_data = Str()
@@ -347,7 +334,7 @@ class Yasso(HasTraits):
                 ),
             label='All data',
             ),
-        VFold(
+        VGroup(
             VGroup(
                 HGroup(
                     Item(name='initial_mode', style='custom',
@@ -513,17 +500,11 @@ class Yasso(HasTraits):
         fn = os.path.split(sys.executable)
         if fn[1].lower().startswith('python'):
             exedir = os.path.split(sys.argv[0])[0]
-            self.data_file = join(os.path.abspath(exedir), 'demo_input.txt')
+            self._get_data(os.path.abspath(exedir))
             parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
         else:
-            self.data_file = join(fn[0], 'demo_input.txt')
+            self._get_data(fn[0])
             parfile = join(fn[0], 'yasso_param.dat')
-        try:
-            f = open(self.data_file)
-            self._load_all_data(f)
-            f.close()
-        except:
-            pass
         # the model
         if os.path.exists(parfile):
             self.yassorunner = ModelRunner(parfile)
@@ -534,6 +515,26 @@ class Yasso(HasTraits):
             error(errmsg, title='Error starting the program',
                   buttons=['OK'])
             sys.exit(-1)
+
+    def _get_data(self, datadir):
+        join = os.path.join
+        statefile = join(datadir, 'yasso.state')
+        if os.path.exists(statefile):
+            state = open(statefile)
+            datafile = state.read()
+            state.close()
+            if datafile[-1]=='\n':
+                datafile = datafile[:-1]
+            self.data_file = datafile
+        else:
+            self.data_file = join(datadir, 'demo_data.txt')
+        self.state_file = statefile
+        try:
+            f = open(self.data_file)
+            self._load_all_data(f)
+            f.close()
+        except:
+            pass
 
 
 ###############################################################################
@@ -672,6 +673,9 @@ class Yasso(HasTraits):
                 f=open(filename)
                 self.data_file = filename
                 self._load_all_data(f)
+                f.close()
+                f = open(self.state_file, 'w')
+                f.write(filename)
                 f.close()
             except:
                 pass
@@ -865,9 +869,13 @@ class Yasso(HasTraits):
                           rainfall=vals[2])
                 self.monthly_climate.append(obj)
             elif vals!=[]:
-                error(errmsg, title='Error reading data',
-                      buttons=['OK'])
+                error(errmsg, title='Error reading data', buttons=['OK'])
                 break
+        if len(self.monthly_climate)%12!=0:
+            errmsg = 'Montly climate time series must be a multiple of 12; '\
+                     'i.e., full year climates must be specified'
+            error(errmsg, title='Error reading data', buttons=['OK'])
+            self.monthly_climate = []
 
     def _load_litter_object(self, data, errmsg, hastime=False):
         obj = None

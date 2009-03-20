@@ -52,6 +52,7 @@ class ModelRunner(object):
         timesteps = 1
         self.timestep_length = STEADY_STATE_TIMESTEP
         self.curr_yr_ind = 0
+        self.curr_month_ind = 0
         self.ml_run = True
         self.infall = {}
         self.initial_mode = 'zero'
@@ -96,6 +97,7 @@ class ModelRunner(object):
                     break
                 self.draw = True
                 self.curr_yr_ind = 0
+                self.curr_month_ind = 0
                 for k in range(timesteps):
                     self._predict_timestep(j, k)
                 self.ml_run = False
@@ -221,27 +223,31 @@ class ModelRunner(object):
         now -- start date
         end -- end date
         """
-        if self.md.duration_unit=='month' and self.timestep_length >= 12:
-            months = range(0,12)
-        else:
-            sm = now.month
-            em = end.month
-            if em<sm:
-                months = range(sm - 1, 12) + range(0, em)
+        # how many months should we aggregate
+        if self.simulation:
+            if self.md.duration_unit=='month':
+                months = range(self.timestep_length)
             else:
-                months = range(sm - 1, em)
+                months = range(12 * self.timestep_length)
+        else:
+            # use the first year for steady state computation
+            months = range(12)
         rain = 0.0
         temp = 0.0
         maxtemp = 0.0
         mintemp = 0.0
+        maxind = len(self.md.monthly_climate) - 1
         for m in months:
-            mtemp = self.md.monthly_climate[m].temperature
+            if self.curr_month_ind > maxind:
+                self.curr_month_ind = 0
+            mtemp = self.md.monthly_climate[self.curr_month_ind].temperature
             temp += mtemp
             if mtemp < mintemp:
                 mintemp = mtemp
             if mtemp > maxtemp:
                 maxtemp = mtemp
-            rain += self.md.monthly_climate[m].rainfall
+            rain += self.md.monthly_climate[self.curr_month_ind].rainfall
+            self.curr_month_ind += 1
         cl['rain'] = rain / len(months)
         cl['temp'] = temp / len(months)
         cl['amplitude'] = (maxtemp - mintemp) / 2.0
@@ -260,6 +266,7 @@ class ModelRunner(object):
         if self.simulation:
             years = range(now.year, end.year + 1)
             if len(years)>1:
+                # the ordinals of days within the year
                 lastord = float(date(now.year, 12, 31).timetuple()[7])
                 noword = float(now.timetuple()[7])
                 firstyearweight = (lastord - noword) / lastord

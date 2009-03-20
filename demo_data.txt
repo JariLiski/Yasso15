@@ -1,6 +1,5 @@
 #
 # THIS FILE CONTAINS DEMO DATA FOR YASSO07
-# THE FILE IS AUTOMATICALLY OPENED EVERY TIME YOU START THE PROGRAM
 #
 # THE CHANGES YOU MAKE HERE HAVE ONLY EFFECT AFTER YOU SAVE THE CHANGES
 # 
@@ -453,7 +452,7 @@
 # 26.0 2860 0.6
 
 [Monthly climate]
-# Data: month (1-12), mean temperature, precipitation
+# Data: month, mean temperature, precipitation
 #
 # Example: Boreal climate
 1 -7.3 528
