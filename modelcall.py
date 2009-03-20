@@ -67,8 +67,8 @@ class ModelRunner(object):
     def run_model(self, modeldata):
         self.simulation = True
         self.md = modeldata
-        self.c_stock = numpy.empty(shape=(0,9), dtype=numpy.float32)
-        self.c_change = numpy.empty(shape=(0,9), dtype=numpy.float32)
+        self.c_stock = numpy.empty(shape=(0,10), dtype=numpy.float32)
+        self.c_change = numpy.empty(shape=(0,10), dtype=numpy.float32)
         self.co2_yield = numpy.empty(shape=(0,3), dtype=numpy.float32)
         self.timemap = defaultdict(list)
         self.area_timemap = defaultdict(list)
@@ -119,12 +119,14 @@ class ModelRunner(object):
         if sc>=self.md.woody_size_limit:
             totalom = endstate.sum()
             woody = totalom
+            nonwoody = 0.0
         else:
             totalom = endstate.sum()
             woody = 0.0
+            nonwoody = totalom
         res = numpy.concatenate(([float(sample), float(timestep), totalom,
-                                  woody], endstate))
-        res.shape = (1, 9)
+                                  woody, nonwoody], endstate))
+        res.shape = (1, 10)
         # find out whether there are already results for this timestep and
         # iteration
         criterium = (cs[:,0]==res[0,0]) & (cs[:,1]==res[0,1])
@@ -160,7 +162,7 @@ class ModelRunner(object):
         criterium = (cs[:,0]==s) & (cs[:,1]==ts-1)
         prevtarget = numpy.where(criterium)[0]
         if len(nowtarget) > 0 and len(prevtarget)>0:
-            stepinf = numpy.array([[s, ts, 0., 0., 0., 0., 0., 0., 0.]],
+            stepinf = numpy.array([[s, ts, 0., 0., 0., 0., 0., 0., 0., 0.]],
                                   dtype=numpy.float32)
             self.c_change = numpy.append(cc, stepinf, axis=0)
             self.c_change[-1, 2:] = cs[nowtarget, 2:] - cs[prevtarget, 2:]
@@ -181,7 +183,8 @@ class ModelRunner(object):
         rowind = numpy.where(criterium)[0]
         if len(rowind)>0:
             atend = cs[rowind[0], 3]
-            self.co2_yield[-1, 2] = self.ts_initial + self.ts_infall - atend
+            co2_as_c = (self.ts_initial + self.ts_infall - atend) / 3.67
+            self.co2_yield[-1, 2] = co2_as_c
 
     def _construct_climate(self, timestep):
         """
@@ -443,18 +446,20 @@ class ModelRunner(object):
         """
         toprocess = [('stock_tom', self.c_stock, 2),
                      ('stock_woody', self.c_stock, 3),
-                     ('stock_acid', self.c_stock, 4),
-                     ('stock_water', self.c_stock, 5),
-                     ('stock_ethanol',  self.c_stock, 6),
-                     ('stock_non_soluble', self.c_stock, 7),
-                     ('stock_humus', self.c_stock, 8),
+                     ('stock_non_woody', self.c_stock, 4),
+                     ('stock_acid', self.c_stock, 5),
+                     ('stock_water', self.c_stock, 6),
+                     ('stock_ethanol',  self.c_stock, 7),
+                     ('stock_non_soluble', self.c_stock, 8),
+                     ('stock_humus', self.c_stock, 9),
                      ('change_tom', self.c_change, 2),
                      ('change_woody', self.c_change, 3),
-                     ('change_acid', self.c_change, 4),
-                     ('change_water', self.c_change, 5),
-                     ('change_ethanol', self.c_change, 6),
-                     ('change_non_soluble', self.c_change, 7),
-                     ('change_humus', self.c_change, 8),
+                     ('change_non_woody', self.c_change, 4),
+                     ('change_acid', self.c_change, 5),
+                     ('change_water', self.c_change, 6),
+                     ('change_ethanol', self.c_change, 7),
+                     ('change_non_soluble', self.c_change, 8),
+                     ('change_humus', self.c_change, 9),
                      ('co2', self.co2_yield, 2)]
         for (resto, dataarr, dataind) in toprocess:
             # filter time steps
@@ -479,6 +484,9 @@ class ModelRunner(object):
                 elif resto=='stock_woody':
                     self.md.stock_woody = numpy.append(self.md.stock_woody,
                                                        res, axis=0)
+                elif resto=='stock_non_woody':
+                    self.md.stock_non_woody = numpy.append(\
+                            self.md.stock_non_woody, res, axis=0)
                 elif resto=='stock_acid':
                     self.md.stock_acid = numpy.append(self.md.stock_acid,
                                                       res, axis=0)
@@ -500,6 +508,9 @@ class ModelRunner(object):
                 elif resto=='change_woody':
                     self.md.change_woody = numpy.append(self.md.change_woody,
                                                         res, axis=0)
+                elif resto=='change_non_woody':
+                    self.md.change_non_woody = numpy.append(\
+                            self.md.change_non_woody, res, axis=0)
                 elif resto=='change_acid':
                     self.md.change_acid = numpy.append(self.md.change_acid,
                                                        res, axis=0)

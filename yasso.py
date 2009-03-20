@@ -10,9 +10,9 @@ from datetime import date
 from enthought.traits.api import Array, Button, Enum, Float, HasTraits,\
     Instance, Int, List, Property, Range, Str
 from enthought.traits.ui.api import CodeEditor, Group, HGroup, VGroup, Item,\
-    spring, TabularEditor, View
+    Label, spring, TabularEditor, View
 from enthought.traits.ui.menu import \
-    UndoAction, RedoAction, RevertAction, CloseAction, HelpAction, \
+    UndoAction, RedoAction, RevertAction, CloseAction, \
     Menu, MenuBar, NoButtons
 from enthought.traits.ui.file_dialog import open_file, save_file
 from enthought.traits.ui.message import error
@@ -21,7 +21,64 @@ from enthought.chaco.api import ArrayPlotData, Plot, GridContainer
 from enthought.enable.component_editor import ComponentEditor
 
 from modelcall import ModelRunner
+APP_INFO="""
+For detailed information, including a user's manual, see:
+www.environment.fi/syke/yasso
 
+Inside the program help is available by clicking the label texts.
+
+Yasso07 model by Finnish Environment Institute (SYKE, www.environment.fi)
+User interface by Simosol Oy (www.simosol.fi)
+
+The program is distributed under the GNU General Public License (GLPv3)
+The source code is available at:
+http://code.google.com/p/yasso07ui/
+"""
+INITIAL_STATE_HELP = """
+There are three alternative ways to give the initial soil carbon stock to Yasso07,<ul>1) the stock specified by user</ul>
+<ul>2) the stock set equal to zero</ul>
+<ul>3) a steady-state stock calculated with the model based on carbon input to soil in the beginning of the simulation</ul>
+<p>If the soil carbon input is set to be yearly or monthly, the input from <b>timestep 0</b> is used to compute the steady state. If no input for timestep 0 is defined, input from <b>step 1</b> is used. Input from timestep 0 is not used in the actual simulation run; i.e., it's only used for steady state prediction.</p>
+"""
+SOIL_CARBON_INPUT_HELP = """
+Soil carbon input can be one of
+<ul>1) yearly time series</ul>
+<ul>2) yearly constant values</ul>
+<ul>3) monthly time series</ul>
+<p><b>Area change</b>: for time series input you can define timesteps when the area under simulation changes. The changes are given as relative changes meaning that a change of 0.01 increases the area by 1 % and a change of -0.1 reduces it by 10 %. The change in area will be directly reflected in the initial carbon stock in soil for the next timestep</p>
+<p>If the simulation run is longer than the defined time series, no input is used for the remaining time.</p>
+<p>Note that if you define input for the timestep 0 for yearly or monthly timeseries, it will be used only for the steady state prediction. In the absence of timestep 0 data, the steady state prediction will be based on the input of timestep 1</p>
+"""
+CLIMATE_HELP = """
+Climate definition can be one of
+<ul>1) yearly time series</ul>
+<ul>2) yearly constant values</ul>
+<ul>3) monthly time series</ul>
+<p>In case of the time series, the series will be applied several times if the simulation run is longer than the defined series; i.e., when the last values from the series are used in the simulation, for the next step the values from the beginning of the climate series will be used.</p>
+<p>Note that the <b>monthly time series</b> is limited to 12 months; i.e., it is used to define the climate variation within a single year, for a simulation covering several years, the same climate is applied repeatedly.
+<p>For <b>steady state prediction</b>, yearly climate from timestep 0 is used if defined, otherwise the climate from step 1 will be used.
+"""
+SAMPLE_SIZE_HELP = """
+Number of parameter combinations to be used in the simulation.
+"""
+SIMULATION_LENGTH_HELP = """
+The number of timesteps of the simulation
+"""
+TIMESTEP_LENGTH_HELP = """
+The duration of each timestep in the simulation
+"""
+WOODY_SIZE_LIMIT_HELP = """
+Minimum size of litter (diameter in cm) classified in the results as woody organic matter. Litter components having smaller size classes than the limit as classified as non-woody organic matter.
+"""
+SHOW_HELP = """
+Besides evaluating the values on the screen, the simulation results can be saved to a file in two formats
+<ul>1) raw results based on each parameter combination used for the simulation</ul>
+<ul>2) statistical characteristics calculated from the raw results.</ul>
+<p>The result files will contain a header detailing the contents of the file and the settings used to derive the values</p>
+"""
+AS_HELP = """
+The charts illustrate the most probable values and their 95 % error estimates (based on the normality assumption).
+"""
 ###############################################################################
 # Basic data container classes
 ###############################################################################
@@ -147,8 +204,8 @@ timed_litter_te = TabularEditor(
 
 class CStockAdapter(TabularAdapter):
     columns = [('sample', 0), ('time step', 1), ('total om', 2),
-               ('woody om', 3), ('acid', 4), ('water', 5), ('ethanol', 6),
-               ('non soluble', 7), ('humus', 8)]
+               ('woody om', 3), ('non-woody om', 4), ('acid', 5),
+               ('water', 6), ('ethanol', 7), ('non soluble', 8), ('humus', 9)]
     font        = 'Courier 10'
     alignment   = 'right'
     format      = '%.4f'
@@ -214,7 +271,7 @@ class Yasso(HasTraits):
     timestep_length = Range(low=1)
     simulation_length = Range(low=1)
     result_type = Enum(['C stock', 'C change', 'CO2 yield'])
-    presentation_type = Enum(['array', 'chart'])
+    presentation_type = Enum(['chart', 'array'])
     chart_type = Enum(['common scale', 'autofit'])
     # Buttons
     open_data_file_event = Button('Open data file...')
@@ -226,14 +283,15 @@ class Yasso(HasTraits):
     # and the results stored
     # Individual model calls
     #     iteration,time, total, woody, acid, water, ethanol, non_soluble, humus
-    c_stock = Array(dtype=float32, shape=(None, 9))
+    c_stock = Array(dtype=float32, shape=(None, 10))
     #     iteration,time, total, woody, acid, water, ethanol, non_soluble, humus
-    c_change = Array(dtype=float32, shape=(None, 9))
+    c_change = Array(dtype=float32, shape=(None, 10))
     #     time, iteration, CO2 yield
     co2_yield = Array(dtype=float32, shape=(None, 3))
     # time, mean, mode, var, skewness, kurtosis, 95% conf-, 95% conf+
     stock_tom = Array(dtype=float32, shape=(None, 8))
     stock_woody = Array(dtype=float32, shape=(None, 8))
+    stock_non_woody = Array(dtype=float32, shape=(None, 8))
     stock_acid = Array(dtype=float32, shape=(None, 8))
     stock_water = Array(dtype=float32, shape=(None, 8))
     stock_ethanol = Array(dtype=float32, shape=(None, 8))
@@ -241,6 +299,7 @@ class Yasso(HasTraits):
     stock_humus = Array(dtype=float32, shape=(None, 8))
     change_tom = Array(dtype=float32, shape=(None, 8))
     change_woody = Array(dtype=float32, shape=(None, 8))
+    change_non_woody = Array(dtype=float32, shape=(None, 8))
     change_acid = Array(dtype=float32, shape=(None, 8))
     change_water = Array(dtype=float32, shape=(None, 8))
     change_ethanol = Array(dtype=float32, shape=(None, 8))
@@ -254,13 +313,14 @@ class Yasso(HasTraits):
     p_timestep = Array()
     ps_tom = Array()
     ps_woody = Array()
+    ps_non_woody = Array()
     ps_acid = Array()
     ps_water = Array()
     ps_ethanol = Array()
     ps_non_soluble = Array()
     ps_humus = Array()
     pc_tom = Array()
-    pc_woody = Array()
+    pc_non_woody = Array()
     pc_acid = Array()
     pc_water = Array()
     pc_ethanol = Array()
@@ -291,18 +351,20 @@ class Yasso(HasTraits):
             VGroup(
                 HGroup(
                     Item(name='initial_mode', style='custom',
-                         label='Initial state:', emphasized=True,),
+                         label='Initial state:', emphasized=True,
+                         help=INITIAL_STATE_HELP, ),
                     ),
                 Item('initial_litter',
                      visible_when='initial_mode=="non zero"',
                      show_label=False, editor=litter_te,
                      width=790, height=75,
-                ),
+                    ),
                 ),
             VGroup(
                 HGroup(
                     Item('litter_mode', style='custom',
-                         label='Litter input:', emphasized=True,),
+                         label='Soil carbon input:', emphasized=True,
+                         help=SOIL_CARBON_INPUT_HELP,),
                     ),
                 HGroup(
                     Item('constant_litter',
@@ -334,7 +396,8 @@ class Yasso(HasTraits):
             VGroup(
                 HGroup(
                     Item('climate_mode', style='custom',
-                        label='Climate:', emphasized=True,),
+                        label='Climate:', emphasized=True,
+                        help=CLIMATE_HELP,),
                     ),
                 HGroup(
                     Item('monthly_climate', show_label=False,
@@ -360,28 +423,32 @@ class Yasso(HasTraits):
         VGroup(
             Group(
                 HGroup(
-                    Item('sample_size', width=-45),
+                    Item('sample_size', width=-45,
+                         help=SAMPLE_SIZE_HELP),
                     Item('simulation_length', width=-45,
-                         label='Number of timesteps',),
-                    Item('timestep_length', width=-45,),
+                         label='Number of timesteps',
+                         help=SIMULATION_LENGTH_HELP,),
+                    Item('timestep_length', width=-45,
+                         help=TIMESTEP_LENGTH_HELP),
                     Item('duration_unit', style='custom',
                          show_label=False,),
                     ),
                 HGroup(
-                    Item('woody_size_limit', width=-45),
+                    Item('woody_size_limit', width=-45,
+                         help=WOODY_SIZE_LIMIT_HELP,),
                     Item('modelrun_event', show_label=False),
                     ),
                 show_border=True
             ),
             HGroup(
                 Item('result_type', style='custom', label='Show',
-                     emphasized=True,),
+                     emphasized=True, help=SHOW_HELP,),
                 Item('save_result_event', show_label=False,),
                 Item('save_moment_event', show_label=False,),
                 ),
             HGroup(
                 Item('presentation_type', style='custom', label='As',
-                     emphasized=True,),
+                     emphasized=True, help=AS_HELP,),
                 Item('chart_type', style='custom', label='Chart type',
                      visible_when='presentation_type=="chart"'),
                 ),
@@ -411,6 +478,11 @@ class Yasso(HasTraits):
                 ),
             label='Model run',
             ),
+        VGroup(
+            Label(label='Yasso07 soil carbon model', emphasized=True),
+            Label(label=APP_INFO,),
+            label='About',
+            ),
         title     = 'Yasso 07',
         id        = 'simosol.yasso07',
         dock      = 'horizontal',
@@ -418,11 +490,12 @@ class Yasso(HasTraits):
         width     = 800,
         height    = 600,
         scrollable= True,
-        buttons   = NoButtons,
+        buttons=NoButtons,
         menubar = MenuBar(
             Menu(CloseAction, name = 'File'),
             Menu(UndoAction, RedoAction, RevertAction, name = 'Edit'),
-            Menu(HelpAction, name = 'Help')),
+            ),
+        help=False,
         )
 
 
@@ -475,6 +548,8 @@ class Yasso(HasTraits):
                                       'Total organic matter')
         swoody, max, min = self._create_plot(max, min, self.stock_woody,
                                         'Woody matter')
+        snonwoody, max, min = self._create_plot(max, min, self.stock_non_woody,
+                                        'Non-woody matter')
         sa, max, min = self._create_plot(max, min, self.stock_acid,
                                          'Acid soluble')
         sw, max, min = self._create_plot(max, min, self.stock_water,
@@ -485,9 +560,9 @@ class Yasso(HasTraits):
                                          'Non soluble')
         sh, max, min = self._create_plot(max, min, self.stock_humus, 'Humus')
         if common_scale:
-            for pl in (stom, swoody, sa, sw, se, sn, sh):
+            for pl in (stom, swoody, snonwoody, sa, sw, se, sn, sh):
                 pl.value_range.set_bounds(min, max)
-        container = GridContainer(stom, swoody, sa, sw, se, sn, sh)
+        container = GridContainer(stom, swoody, snonwoody, sa, sw, se, sn, sh)
         container.shape = (3,3)
         container.spacing = (-15,-15)
         self.stock_plots = container
@@ -499,6 +574,8 @@ class Yasso(HasTraits):
                                            'Total organic matter')
         cwoody, max, min = self._create_plot(max, min, self.change_woody,
                                              'Woody matter')
+        cnonwoody, max, min = self._create_plot(max, min, self.change_non_woody,
+                                             'Non-woody matter')
         ca, max, min = self._create_plot(max, min, self.change_acid,
                                          'Acid soluble')
         cw, max, min = self._create_plot(max, min, self.change_water,
@@ -509,9 +586,9 @@ class Yasso(HasTraits):
                                          'Non soluble')
         ch, max, min = self._create_plot(max, min, self.change_humus, 'Humus')
         if common_scale:
-            for pl in (ctom, cwoody, ca, cw, ce, cn, ch):
+            for pl in (ctom, cwoody, cnonwoody, ca, cw, ce, cn, ch):
                 pl.value_range.set_bounds(min, max)
-        container = GridContainer(ctom, cwoody, ca, cw, ce, cn, ch)
+        container = GridContainer(ctom, cwoody, cnonwoody, ca, cw, ce, cn, ch)
         container.shape = (3,3)
         container.spacing = (-15,-15)
         self.change_plots = container
@@ -519,7 +596,8 @@ class Yasso(HasTraits):
     def _create_co2_plot(self):
         max = None
         min = 0
-        co2, max, min = self._create_plot(max, min, self.co2, 'CO2 yield')
+        co2, max, min = self._create_plot(max, min, self.co2,
+                 'CO2 production (in units of carbon)')
         container = GridContainer(co2, Plot(), Plot(), Plot())
         container.shape= (2,2)
         self.co2_plot = container
@@ -633,11 +711,11 @@ class Yasso(HasTraits):
         for section, vallist in data.items():
             if section=='Initial state':
                 self._set_initial_state(vallist)
-            elif section=='Constant litterfall':
+            elif section=='Constant soil carbon input':
                 self._set_constant_litter(vallist)
-            elif section=='Monthly litterfall':
+            elif section=='Monthly soil carbon input':
                 self._set_monthly_litter(vallist)
-            elif section=='Yearly litterfall':
+            elif section=='Yearly soil carbon input':
                 self._set_yearly_litter(vallist)
             elif section=='Relative area change':
                 self._set_area_change(vallist)
@@ -657,7 +735,7 @@ class Yasso(HasTraits):
         f.close()
 
     def _set_initial_state(self, data):
-        errmsg = 'Litter components should contain: \n'\
+        errmsg = 'Soil carbon components should contain: \n'\
                       ' mass, mass std, acid, acid std, water, water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
@@ -669,7 +747,7 @@ class Yasso(HasTraits):
             self.initial_litter.append(obj)
 
     def _set_steady_state(self, data):
-        errmsg = 'Litter components should contain: \n'\
+        errmsg = 'Soil carbon components should contain: \n'\
                       ' mass, mass std, acid, acid std, water, water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
@@ -681,7 +759,7 @@ class Yasso(HasTraits):
             self.steady_state.append(obj)
 
     def _set_constant_litter(self, data):
-        errmsg = 'Litter components should contain: \n'\
+        errmsg = 'Soil carbon components should contain: \n'\
                       ' mass, mass std, acid, acid std, water, water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
@@ -693,7 +771,7 @@ class Yasso(HasTraits):
             self.constant_litter.append(obj)
 
     def _set_constant_litter(self, data):
-        errmsg = 'Litter components should contain: \n'\
+        errmsg = 'Soil carbon components should contain: \n'\
                       'mass, mass std, acid, acid std, water, '\
                       'water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
@@ -706,7 +784,7 @@ class Yasso(HasTraits):
             self.constant_litter.append(obj)
 
     def _set_monthly_litter(self, data):
-        errmsg = 'Timed litter components should contain: \n'\
+        errmsg = 'timed soil carbon components should contain: \n'\
                       ' timestep, mass, mass std, acid, acid std, water, '\
                       'water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
@@ -719,7 +797,7 @@ class Yasso(HasTraits):
             self.monthly_litter.append(obj)
 
     def _set_yearly_litter(self, data):
-        errmsg = 'Timed litter components should contain: \n'\
+        errmsg = 'timed soil carbon components should contain: \n'\
                   ' timestep, mass, mass std, acid, acid std, water, '\
                   'water std,\n'\
                   ' ethanol, ethanol std, non soluble, non soluble std,'\
@@ -842,15 +920,17 @@ class Yasso(HasTraits):
             f=open(filename, 'w')
             if self.result_type=='C stock':
                 comps = (('tom', self.stock_tom), ('woody', self.stock_woody),
+                        ('non-woody', self.stock_non_woody),
                        ('acid', self.stock_acid), ('water', self.stock_water),
                        ('ethanol', self.stock_ethanol),
-                       ('non_soluble', self.stock_non_soluble),
+                       ('non-soluble', self.stock_non_soluble),
                        ('humus', self.stock_humus))
             elif self.result_type=='C change':
                 comps = (('tom', self.change_tom), ('woody', self.change_woody),
+                        ('non-woody', self.change_non_woody),
                        ('acid', self.change_acid), ('water', self.change_water),
                        ('ethanol', self.change_ethanol),
-                       ('non_soluble', self.change_non_soluble),
+                       ('non-soluble', self.change_non_soluble),
                        ('humus', self.change_humus))
             elif self.result_type=='CO2 yield':
                 comps = (('CO2', self.co2),)
@@ -873,15 +953,16 @@ class Yasso(HasTraits):
             f=open(filename, 'w')
             if self.result_type=='C stock':
                 res = self.c_stock
-                header = '# sample, time step, total om, woody om, acid, '\
-                         'water, ethanol, non soluble, humus'
+                header = '# sample, time step, total om, woody om, non-woody om,'\
+                         ' acid, water, ethanol, non-soluble, humus'
             elif self.result_type=='C change':
                 res = self.c_change
-                header = '# sample, time step, total om, woody om, acid, '\
-                         'water, ethanol, non soluble, humus'
+                header = '# sample, time step, total om, woody om, non-woody om,'\
+                         ' acid, water, ethanol, non soluble, humus'
             elif self.result_type=='CO2 yield':
                 res = self.co2_yield
-                header = '# sample, time step, CO2 yield'
+                header = '# sample, time step, CO2 production (in units of '\
+                         'carbon'
             header = self._make_result_header(header)
             f.write(header+'\n')
             for row in res:
@@ -899,7 +980,7 @@ class Yasso(HasTraits):
         hstr += '# Datafile used: ' + self.data_file + '\n'
         hstr += '# Settings:\n'
         hstr += '#   initial state: ' + self.initial_mode + '\n'
-        hstr += '#   litter input: ' + self.litter_mode + '\n'
+        hstr += '#   soil carbon input: ' + self.litter_mode + '\n'
         hstr += '#   climate: ' + self.climate_mode + '\n'
         hstr += '#   sample size: ' + str(self.sample_size) + '\n'
         hstr += ''.join(['#   timestep length: ', str(self.timestep_length),
@@ -911,19 +992,20 @@ class Yasso(HasTraits):
     def _init_results(self):
         """
         model results: stock & change
-         sample, timestep, tom, woody, acid, water, ethanol, non soluble
-         humus
+         sample, timestep, tom, woody, non-woody, acid, water, ethanol,
+         non soluble humus
         model results: CO2
          sample, timestep, CO2 yield
         summary results
          common format: time, mean, mode, var, skewness, kurtosis,
          95% confidence-, 95% confidence+
         """
-        self.c_stock = empty(dtype=float32, shape=(0, 9))
-        self.c_change = empty(dtype=float32, shape=(0, 9))
+        self.c_stock = empty(dtype=float32, shape=(0, 10))
+        self.c_change = empty(dtype=float32, shape=(0, 10))
         self.co2_yield = empty(dtype=float32, shape=(0, 3))
         self.stock_tom = empty(dtype=float32, shape=(0, 8))
         self.stock_woody = empty(dtype=float32, shape=(0, 8))
+        self.stock_non_woody = empty(dtype=float32, shape=(0, 8))
         self.stock_acid = empty(dtype=float32, shape=(0, 8))
         self.stock_water = empty(dtype=float32, shape=(0, 8))
         self.stock_ethanol = empty(dtype=float32, shape=(0, 8))
@@ -931,6 +1013,7 @@ class Yasso(HasTraits):
         self.stock_humus = empty(dtype=float32, shape=(0, 8))
         self.change_tom = empty(dtype=float32, shape=(0, 8))
         self.change_woody = empty(dtype=float32, shape=(0, 8))
+        self.change_non_woody = empty(dtype=float32, shape=(0, 8))
         self.change_acid = empty(dtype=float32, shape=(0, 8))
         self.change_water = empty(dtype=float32, shape=(0, 8))
         self.change_ethanol = empty(dtype=float32, shape=(0, 8))
