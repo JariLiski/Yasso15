@@ -10,7 +10,7 @@ from datetime import date
 from enthought.traits.api import Array, Button, Enum, Float, HasTraits,\
     Instance, Int, List, Property, Range, Str
 from enthought.traits.ui.api import CodeEditor, Group, HGroup, VGroup, Item,\
-    Label, spring, TabularEditor, View
+        Label, spring, TabularEditor, VFold, View
 from enthought.traits.ui.menu import \
     UndoAction, RedoAction, RevertAction, CloseAction, \
     Menu, MenuBar, NoButtons
@@ -347,7 +347,7 @@ class Yasso(HasTraits):
                 ),
             label='All data',
             ),
-        VGroup(
+        VFold(
             VGroup(
                 HGroup(
                     Item(name='initial_mode', style='custom',
@@ -359,6 +359,7 @@ class Yasso(HasTraits):
                      show_label=False, editor=litter_te,
                      width=790, height=75,
                     ),
+                label='Initial state:',
                 ),
             VGroup(
                 HGroup(
@@ -392,6 +393,7 @@ class Yasso(HasTraits):
                          width=-150,height=-75),
                     spring,
                     ),
+                label='Soil carbon input:',
                 ),
             VGroup(
                 HGroup(
@@ -417,6 +419,7 @@ class Yasso(HasTraits):
                         visible_when='climate_mode=="constant yearly"'
                         ),
                     ),
+                label='Climate:',
                 ),
             label='Data to use',
             ),
