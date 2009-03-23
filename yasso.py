@@ -717,7 +717,7 @@ class Yasso(HasTraits):
 ########################
 
     def _new_data_file_event_fired(self):
-        filename = open_file()
+        filename = save_file()
         if filename != '':
             try:
                 f=open(filename, 'w')
