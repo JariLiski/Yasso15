@@ -562,7 +562,7 @@ class Yasso(HasTraits):
             self.data_file = join(os.path.abspath(exedir), 'demo_data.txt')
             parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
         else:
-            self.data_file = join(fn[0], 'demo_input.txt')
+            self.data_file = join(fn[0], 'demo_data.txt')
             parfile = join(fn[0], 'yasso_param.dat')
         try:
             f = open(self.data_file)
