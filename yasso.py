@@ -10,7 +10,7 @@ from datetime import date
 from enthought.traits.api import Array, Button, Enum, Float, HasTraits,\
     Instance, Int, List, Property, Range, Str
 from enthought.traits.ui.api import CodeEditor, Group, HGroup, VGroup, Item,\
-        Label, spring, TabularEditor, View
+    Label, spring, TabularEditor, View
 from enthought.traits.ui.menu import \
     UndoAction, RedoAction, RevertAction, CloseAction, \
     Menu, MenuBar, NoButtons
@@ -55,7 +55,7 @@ Climate definition can be one of
 <ul>2) yearly constant values</ul>
 <ul>3) monthly time series</ul>
 <p>In case of the time series, the series will be applied several times if the simulation run is longer than the defined series; i.e., when the last values from the series are used in the simulation, for the next step the values from the beginning of the climate series will be used.</p>
-<p>Note that the <b>monthly time series</b> must be a multiple of 12 months; i.e., the series must cover full years.</p>
+<p>Note that the <b>monthly time series</b> is limited to 12 months; i.e., it is used to define the climate variation within a single year, for a simulation covering several years, the same climate is applied repeatedly.
 <p>For <b>steady state prediction</b>, yearly climate from timestep 0 is used if defined, otherwise the climate from step 1 will be used.
 """
 SAMPLE_SIZE_HELP = """
@@ -78,6 +78,55 @@ Besides evaluating the values on the screen, the simulation results can be saved
 """
 AS_HELP = """
 The charts illustrate the most probable values and their 95 % error estimates (based on the normality assumption).
+"""
+DATA_STRING = """
+# THE CHANGES YOU MAKE HERE HAVE ONLY EFFECT AFTER YOU SAVE THE CHANGES
+#
+# commented out rows begin with the # chacter
+# numbers must be whitespace separated (space or tab)
+# decimal separator is ., no thousands separator
+#
+[Initial state]
+# Data as value pairs, mean and standard deviation, except for the size of
+# woody litter mean only
+# Mass as unit of mass, chemical composition as percentages of the total mass,
+# size of woody litter as diameter in cm
+# Data: mass, acid hydrolyzable, water soluble, ethanol soluble, non-soluble,
+# humus, size of woody litter (diameter in cm)
+
+[Constant soil carbon input]
+# Data as value pairs, mean and standard deviation, except for the size of
+# woody litter mean only
+# Mass as unit of mass, chemical composition as percentages of the total mass,
+# size of woody litter as diameter in cm
+# Data: mass, acid hydrolyzable, water soluble, ethanol soluble, non-soluble,
+# humus, size of woody litter (diameter in cm)
+
+[Monthly soil carbon input]
+# Data as value pairs, mean and standard deviation, except for the size of
+# woody litter mean only
+# Mass as unit of mass, chemical composition as percentages of the total mass,
+# size of woody litter as diameter in cm
+# Data: month, mass, acid hydrolyzable, water soluble, ethanol soluble,
+# non-soluble, humus, size of woody litter (diameter in cm)
+
+[Yearly soil carbon input]
+# Data as value pairs, mean and standard deviation, except for the size of
+# woody litter mean only
+# Mass as unit of mass, chemical composition as percentages of the total mass,
+# size of woody litter as diameter in cm
+# Data: year, mass, acid hydrolyzable, water soluble,
+# ethanol soluble, non-soluble, humus, size of woody litter (diameter in cm)
+
+[Relative area change]
+# Timestep, relative change in area
+
+[Constant climate]
+# Data: mean temperature, precipitation, amplitude of monthly mean temperature
+# variation
+
+[Monthly climate]
+# Data: month, mean temperature, precipitation
 """
 ###############################################################################
 # Basic data container classes
@@ -247,7 +296,20 @@ class Yasso(HasTraits):
     # Climate definition for the simulation
     climate_mode = Enum(['yearly', 'constant yearly', 'monthly'])
     constant_climate = YearlyClimate()
-    monthly_climate = List(trait=MonthlyClimate)
+    monthly_climate = List(trait=MonthlyClimate,
+            value=[MonthlyClimate(month=1),
+                   MonthlyClimate(month=2),
+                   MonthlyClimate(month=3),
+                   MonthlyClimate(month=4),
+                   MonthlyClimate(month=5),
+                   MonthlyClimate(month=6),
+                   MonthlyClimate(month=7),
+                   MonthlyClimate(month=8),
+                   MonthlyClimate(month=9),
+                   MonthlyClimate(month=10),
+                   MonthlyClimate(month=11),
+                   MonthlyClimate(month=12)]
+            )
     yearly_climate = List(trait=YearlyClimate)
     # All data as text
     all_data = Str()
@@ -346,7 +408,6 @@ class Yasso(HasTraits):
                      show_label=False, editor=litter_te,
                      width=790, height=75,
                     ),
-                label='Initial state:',
                 ),
             VGroup(
                 HGroup(
@@ -380,7 +441,6 @@ class Yasso(HasTraits):
                          width=-150,height=-75),
                     spring,
                     ),
-                label='Soil carbon input:',
                 ),
             VGroup(
                 HGroup(
@@ -406,7 +466,6 @@ class Yasso(HasTraits):
                         visible_when='climate_mode=="constant yearly"'
                         ),
                     ),
-                label='Climate:',
                 ),
             label='Data to use',
             ),
@@ -500,11 +559,17 @@ class Yasso(HasTraits):
         fn = os.path.split(sys.executable)
         if fn[1].lower().startswith('python'):
             exedir = os.path.split(sys.argv[0])[0]
-            self._get_data(os.path.abspath(exedir))
+            self.data_file = join(os.path.abspath(exedir), 'demo_input.txt')
             parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
         else:
-            self._get_data(fn[0])
+            self.data_file = join(fn[0], 'demo_input.txt')
             parfile = join(fn[0], 'yasso_param.dat')
+        try:
+            f = open(self.data_file)
+            self._load_all_data(f)
+            f.close()
+        except:
+            self.all_data = DATA_STRING
         # the model
         if os.path.exists(parfile):
             self.yassorunner = ModelRunner(parfile)
@@ -515,26 +580,6 @@ class Yasso(HasTraits):
             error(errmsg, title='Error starting the program',
                   buttons=['OK'])
             sys.exit(-1)
-
-    def _get_data(self, datadir):
-        join = os.path.join
-        statefile = join(datadir, 'yasso.state')
-        if os.path.exists(statefile):
-            state = open(statefile)
-            datafile = state.read()
-            state.close()
-            if datafile[-1]=='\n':
-                datafile = datafile[:-1]
-            self.data_file = datafile
-        else:
-            self.data_file = join(datadir, 'demo_data.txt')
-        self.state_file = statefile
-        try:
-            f = open(self.data_file)
-            self._load_all_data(f)
-            f.close()
-        except:
-            pass
 
 
 ###############################################################################
@@ -673,9 +718,6 @@ class Yasso(HasTraits):
                 f=open(filename)
                 self.data_file = filename
                 self._load_all_data(f)
-                f.close()
-                f = open(self.state_file, 'w')
-                f.write(filename)
                 f.close()
             except:
                 pass
@@ -869,13 +911,9 @@ class Yasso(HasTraits):
                           rainfall=vals[2])
                 self.monthly_climate.append(obj)
             elif vals!=[]:
-                error(errmsg, title='Error reading data', buttons=['OK'])
+                error(errmsg, title='Error reading data',
+                      buttons=['OK'])
                 break
-        if len(self.monthly_climate)%12!=0:
-            errmsg = 'Montly climate time series must be a multiple of 12; '\
-                     'i.e., full year climates must be specified'
-            error(errmsg, title='Error reading data', buttons=['OK'])
-            self.monthly_climate = []
 
     def _load_litter_object(self, data, errmsg, hastime=False):
         obj = None
