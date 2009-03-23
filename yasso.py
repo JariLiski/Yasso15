@@ -125,8 +125,11 @@ DATA_STRING = """
 # Data: mean temperature, precipitation, amplitude of monthly mean temperature
 # variation
 
+[Yearly climate]
+# Data: timestep, mean temperature, precipitation
+
 [Monthly climate]
-# Data: month, mean temperature, precipitation
+# Data: timestep, mean temperature, precipitation
 """
 ###############################################################################
 # Basic data container classes
@@ -323,8 +326,9 @@ class Yasso(HasTraits):
     presentation_type = Enum(['chart', 'array'])
     chart_type = Enum(['common scale', 'autofit'])
     # Buttons
-    open_data_file_event = Button('Open data file...')
-    save_data_file_event = Button('Save data file')
+    new_data_file_event = Button('New...')
+    open_data_file_event = Button('Open...')
+    save_data_file_event = Button('Save')
     save_as_file_event = Button('Save as...')
     modelrun_event = Button('Run model')
     save_result_event = Button('Save raw results...')
@@ -383,6 +387,7 @@ class Yasso(HasTraits):
     view = View(
         VGroup(
             HGroup(
+                Item('new_data_file_event', show_label=False,),
                 Item('open_data_file_event', show_label=False,),
                 Item('save_data_file_event', show_label=False,),
                 Item('save_as_file_event', show_label=False,),
@@ -711,6 +716,17 @@ class Yasso(HasTraits):
 # for buttons
 ########################
 
+    def _new_data_file_event_fired(self):
+        filename = open_file()
+        if filename != '':
+            try:
+                f=open(filename, 'w')
+                self.data_file = filename
+                self.all_data=DATA_STRING
+                f.close()
+            except:
+                pass
+
     def _open_data_file_event_fired(self):
         filename = open_file()
         if filename != '':
@@ -891,14 +907,13 @@ class Yasso(HasTraits):
     def _set_constant_climate(self, data):
         errmsg = 'Constant climate should contain: mean temperature,\n'\
                  'annual rainfall and temperature variation amplitude'
-        if data!=[]:
-            if len(data[0])==3:
-                self.constant_climate.mean_temperature = data[0][0]
-                self.constant_climate.annual_rainfall = data[0][1]
-                self.constant_climate.variation_amplitude = data[0][2]
-            else:
-                error(errmsg, title='error reading data',
-                      buttons=['OK'])
+        if len(data[0])==3:
+            self.constant_climate.mean_temperature = data[0][0]
+            self.constant_climate.annual_rainfall = data[0][1]
+            self.constant_climate.variation_amplitude = data[0][2]
+        elif data[0]!=[]:
+            error(errmsg, title='error reading data',
+                  buttons=['OK'])
 
     def _set_monthly_climate(self, data):
         errmsg = 'Monthly climate data should contain: month,\n'\

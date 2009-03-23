@@ -126,4 +126,5 @@ exe = EXE(#TkPKG(),
           debug= False,
           strip=False,
           upx=False,
+          icon='yasso.ico',
           console=False )
