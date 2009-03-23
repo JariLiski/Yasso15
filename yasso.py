@@ -559,7 +559,7 @@ class Yasso(HasTraits):
         fn = os.path.split(sys.executable)
         if fn[1].lower().startswith('python'):
             exedir = os.path.split(sys.argv[0])[0]
-            self.data_file = join(os.path.abspath(exedir), 'demo_input.txt')
+            self.data_file = join(os.path.abspath(exedir), 'demo_data.txt')
             parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
         else:
             self.data_file = join(fn[0], 'demo_input.txt')
