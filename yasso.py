@@ -22,6 +22,8 @@ from enthought.enable.component_editor import ComponentEditor
 
 from modelcall import ModelRunner
 APP_INFO="""
+Version 1.0
+
 For detailed information, including a user's manual, see:
 www.environment.fi/syke/yasso
 
@@ -563,11 +565,11 @@ class Yasso(HasTraits):
         join = os.path.join
         fn = os.path.split(sys.executable)
         if fn[1].lower().startswith('python'):
-            exedir = os.path.split(sys.argv[0])[0]
-            self.data_file = join(os.path.abspath(exedir), 'demo_data.txt')
+            exedir = os.path.abspath(os.path.split(sys.argv[0])[0])
+            self.data_file = self._get_data_file_path(exedir)
             parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
         else:
-            self.data_file = join(fn[0], 'demo_data.txt')
+            self.data_file = self._get_data_file_path(fn[0])
             parfile = join(fn[0], 'yasso_param.dat')
         try:
             f = open(self.data_file)
@@ -587,6 +589,23 @@ class Yasso(HasTraits):
                   buttons=['OK'])
             sys.exit(-1)
 
+    def _get_data_file_path(self, exedir):
+        join = os.path.join
+        self.state_file = join(exedir, 'yasso.state')
+        if os.path.exists(self.state_file):
+            f = open(self.state_file)
+            datafile = f.read()
+            if datafile[-1]=='\n':
+                datafile = datafile[:-1]
+            f.close()
+        else:
+            datafile = join(exedir, 'demo_data.txt')
+        return datafile
+
+    def _write_state(self, filename):
+        f = open(self.state_file, 'w')
+        f.write(filename)
+        f.close()
 
 ###############################################################################
 # Event handlers
@@ -723,9 +742,10 @@ class Yasso(HasTraits):
             try:
                 self._reset_data()
                 f=open(filename, 'w')
-                self.data_file = filename
-                self.all_data=DATA_STRING
                 f.close()
+                self.data_file = filename
+                self._write_state(filename)
+                self.all_data=DATA_STRING
             except:
                 pass
 
@@ -735,6 +755,7 @@ class Yasso(HasTraits):
             try:
                 f=open(filename)
                 self.data_file = filename
+                self._write_state(filename)
                 self._load_all_data(f)
                 f.close()
             except:
@@ -746,6 +767,7 @@ class Yasso(HasTraits):
             if filename=='':
                 return
             self.data_file = filename
+            self._write_state(filename)
         self._save_all_data()
 
     def _save_as_file_event_fired(self):
@@ -753,6 +775,7 @@ class Yasso(HasTraits):
         if filename=='':
             return
         self.data_file = filename
+        self._write_state(filename)
         self._save_all_data()
 
     def _load_all_data(self, datafile):
