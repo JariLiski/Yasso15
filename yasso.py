@@ -267,7 +267,7 @@ c_stock_te = TabularEditor(
    )
 
 class CO2YieldAdapter(TabularAdapter):
-    columns = [('sample', 0), ('time step', 1), ('CO2 yield', 2)]
+    columns = [('sample', 0), ('time step', 1), ('CO2 production', 2)]
     font        = 'Courier 10'
     alignment   = 'right'
     format      = '%.4f'
@@ -322,7 +322,7 @@ class Yasso(HasTraits):
     duration_unit = Enum(['year', 'month'])
     timestep_length = Range(low=1)
     simulation_length = Range(low=1)
-    result_type = Enum(['C stock', 'C change', 'CO2 yield'])
+    result_type = Enum(['C stock', 'C change', 'CO2 production'])
     presentation_type = Enum(['chart', 'array'])
     chart_type = Enum(['common scale', 'autofit'])
     # Buttons
@@ -339,7 +339,7 @@ class Yasso(HasTraits):
     c_stock = Array(dtype=float32, shape=(None, 10))
     #     iteration,time, total, woody, acid, water, ethanol, non_soluble, humus
     c_change = Array(dtype=float32, shape=(None, 10))
-    #     time, iteration, CO2 yield
+    #     time, iteration, CO2 production
     co2_yield = Array(dtype=float32, shape=(None, 3))
     # time, mean, mode, var, skewness, kurtosis, 95% conf-, 95% conf+
     stock_tom = Array(dtype=float32, shape=(None, 8))
@@ -513,8 +513,8 @@ class Yasso(HasTraits):
                 Item('c_change', visible_when='result_type=="C change" and \
                       presentation_type=="array"', show_label=False,
                       editor=c_stock_te,),
-                Item('co2_yield', visible_when='result_type=="CO2 yield" and \
-                      presentation_type=="array"', show_label=False,
+                Item('co2_yield', visible_when='result_type=="CO2 production" '\
+                      'and presentation_type=="array"', show_label=False,
                       editor=co2_yield_te,),
                 Item('stock_plots', editor=ComponentEditor(),
                      show_label=False, width=600, height=600,
@@ -527,7 +527,7 @@ class Yasso(HasTraits):
                 Item('co2_plot', editor=ComponentEditor(),
                      show_label=False, width=600, height=600,
                      #springy=False, full_size=False, resizable=False,
-                     visible_when='result_type=="CO2 yield" and \
+                     visible_when='result_type=="CO2 production" and \
                                   presentation_type=="chart"',),
                 ),
             label='Model run',
@@ -575,6 +575,7 @@ class Yasso(HasTraits):
             f.close()
         except:
             self.all_data = DATA_STRING
+            self.data_file = ''
         # the model
         if os.path.exists(parfile):
             self.yassorunner = ModelRunner(parfile)
@@ -720,6 +721,7 @@ class Yasso(HasTraits):
         filename = save_file()
         if filename != '':
             try:
+                self._reset_data()
                 f=open(filename, 'w')
                 self.data_file = filename
                 self.all_data=DATA_STRING
@@ -739,7 +741,7 @@ class Yasso(HasTraits):
                 pass
 
     def _save_data_file_event_fired(self):
-        if self.data_file is None:
+        if self.data_file=='':
             filename = save_file()
             if filename=='':
                 return
@@ -758,6 +760,7 @@ class Yasso(HasTraits):
         Loads all data from a single file. Data in sections defined by [name],
         data in whitespace delimited rows
         """
+        self._reset_data()
         sectionp = re.compile('\[([\w+\s*]+)\]')
         datap = re.compile('[+-Ee\d+\.\d*\s*]+')
         active = None
@@ -799,12 +802,27 @@ class Yasso(HasTraits):
         self._load_all_data(f)
         f.close()
 
+    def _reset_data(self):
+        """
+        Empties all data structures
+        """
+        self.initial_litter = []
+        self.steady_state = []
+        self.constant_litter = []
+        self.monthly_litter = []
+        self.yearly_litter = []
+        self.area_change = []
+        self.constant_climate.mean_temperature = 0
+        self.constant_climate.annual_rainfall = 0
+        self.constant_climate.variation_amplitude = 0
+        self.yearly_climate = []
+        self.monthly_climate = []
+
     def _set_initial_state(self, data):
         errmsg = 'Soil carbon components should contain: \n'\
                       ' mass, mass std, acid, acid std, water, water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
-        self.initial_litter = []
         for vals in data:
             ok, obj = self._load_litter_object(vals, errmsg)
             if not ok:
@@ -816,7 +834,6 @@ class Yasso(HasTraits):
                       ' mass, mass std, acid, acid std, water, water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
-        self.steady_state = []
         for vals in data:
             ok, obj = self._load_litter_object(vals, errmsg)
             if not ok:
@@ -828,22 +845,8 @@ class Yasso(HasTraits):
                       ' mass, mass std, acid, acid std, water, water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
-        self.constant_litter = []
         for vals in data:
             ok, obj = self._load_litter_object(vals, errmsg)
-            if not ok:
-                break
-            self.constant_litter.append(obj)
-
-    def _set_constant_litter(self, data):
-        errmsg = 'Soil carbon components should contain: \n'\
-                      'mass, mass std, acid, acid std, water, '\
-                      'water std,\n'\
-                      ' ethanol, ethanol std, non soluble, non soluble std,'\
-                      '\n humus, humus std, size class'
-        self.constant_litter = []
-        for vals in data:
-            ok, obj = self._load_litter_object(vals, errmsg, False)
             if not ok:
                 break
             self.constant_litter.append(obj)
@@ -854,7 +857,6 @@ class Yasso(HasTraits):
                       'water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
-        self.monthly_litter = []
         for vals in data:
             ok, obj = self._load_litter_object(vals, errmsg, True)
             if not ok:
@@ -867,7 +869,6 @@ class Yasso(HasTraits):
                   'water std,\n'\
                   ' ethanol, ethanol std, non soluble, non soluble std,'\
                   '\n humus, humus std, size class'
-        self.yearly_litter = []
         for vals in data:
             ok, obj = self._load_litter_object(vals, errmsg, True)
             if not ok:
@@ -877,7 +878,6 @@ class Yasso(HasTraits):
     def _set_area_change(self, data):
         errmsg = 'Area change should contain: \n'\
                  ' timestep, relative area change'
-        self.area_change = []
         for vals in data:
             if len(vals)==2:
                 obj = AreaChange(timestep=int(vals[0]),
@@ -891,7 +891,6 @@ class Yasso(HasTraits):
     def _set_yearly_climate(self, data):
         errmsg = 'Yearly climate should contain: timestep, mean temperature,\n'\
                  'annual rainfall and temperature variation amplitude'
-        self.yearly_climate = []
         for vals in data:
             if len(vals)==4:
                 obj = YearlyClimate(timestep=int(vals[0]),
@@ -918,7 +917,6 @@ class Yasso(HasTraits):
     def _set_monthly_climate(self, data):
         errmsg = 'Monthly climate data should contain: month,\n'\
                  'temperature and rainfall'
-        self.monthly_climate = []
         for vals in data:
             if len(vals)==3:
                 obj = MonthlyClimate(month=int(vals[0]),
@@ -996,7 +994,7 @@ class Yasso(HasTraits):
                        ('ethanol', self.change_ethanol),
                        ('non-soluble', self.change_non_soluble),
                        ('humus', self.change_humus))
-            elif self.result_type=='CO2 yield':
+            elif self.result_type=='CO2 production':
                 comps = (('CO2', self.co2),)
             header = '# component, time step, mean, mode, var, skewness, '\
                      'kurtosis, 95% confidence lower limit, 95% upper limit'
@@ -1023,7 +1021,7 @@ class Yasso(HasTraits):
                 res = self.c_change
                 header = '# sample, time step, total om, woody om, non-woody om,'\
                          ' acid, water, ethanol, non soluble, humus'
-            elif self.result_type=='CO2 yield':
+            elif self.result_type=='CO2 production':
                 res = self.co2_yield
                 header = '# sample, time step, CO2 production (in carbon)'
             header = self._make_result_header(header)
@@ -1058,7 +1056,7 @@ class Yasso(HasTraits):
          sample, timestep, tom, woody, non-woody, acid, water, ethanol,
          non soluble humus
         model results: CO2
-         sample, timestep, CO2 yield
+         sample, timestep, CO2 production
         summary results
          common format: time, mean, mode, var, skewness, kurtosis,
          95% confidence-, 95% confidence+
