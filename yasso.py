@@ -651,7 +651,7 @@ class Yasso(HasTraits):
         max = None
         min = 0
         co2, max, min = self._create_plot(max, min, self.co2,
-                 'CO2 production (in units of carbon)')
+                 'CO2 production (in carbon)')
         container = GridContainer(co2, Plot(), Plot(), Plot())
         container.shape= (2,2)
         self.co2_plot = container
@@ -1025,8 +1025,7 @@ class Yasso(HasTraits):
                          ' acid, water, ethanol, non soluble, humus'
             elif self.result_type=='CO2 yield':
                 res = self.co2_yield
-                header = '# sample, time step, CO2 production (in units of '\
-                         'carbon'
+                header = '# sample, time step, CO2 production (in carbon)'
             header = self._make_result_header(header)
             f.write(header+'\n')
             for row in res:

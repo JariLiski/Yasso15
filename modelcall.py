@@ -184,8 +184,8 @@ class ModelRunner(object):
         criterium = (cs[:,0]==s) & (cs[:,1]==ts)
         rowind = numpy.where(criterium)[0]
         if len(rowind)>0:
-            atend = cs[rowind[0], 3]
-            co2_as_c = (self.ts_initial + self.ts_infall - atend) / 3.67
+            atend = cs[rowind[0], 2]
+            co2_as_c = self.ts_initial + self.ts_infall - atend
             self.co2_yield[-1, 2] = co2_as_c
 
     def _construct_climate(self, timestep):
