@@ -28,13 +28,13 @@ For detailed information, including a user's manual, see:
 www.environment.fi/syke/yasso
 
 Inside the program help is available by clicking the label texts.
+Program wiki is at code.google.com/p/yasso07ui
 
 Yasso07 model by Finnish Environment Institute (SYKE, www.environment.fi)
 User interface by Simosol Oy (www.simosol.fi)
 
 The program is distributed under the GNU General Public License (GLPv3)
-The source code is available at:
-http://code.google.com/p/yasso07ui/
+The source code is available at code.google.com/p/yasso07ui/
 """
 INITIAL_STATE_HELP = """
 There are three alternative ways to give the initial soil carbon stock to Yasso07,<ul>1) the stock specified by user</ul>
@@ -463,9 +463,9 @@ class Yasso(HasTraits):
                         visible_when='climate_mode=="yearly"',
                         editor=yearly_climate_te, width=200, height=75),
                     VGroup(
-                        Item('object.constant_climate.annual_rainfall',
-                              style='readonly',),
                         Item('object.constant_climate.mean_temperature',
+                              style='readonly',),
+                        Item('object.constant_climate.annual_rainfall',
                               style='readonly',),
                         Item('object.constant_climate.variation_amplitude',
                               style='readonly',),
@@ -595,9 +595,12 @@ class Yasso(HasTraits):
         if os.path.exists(self.state_file):
             f = open(self.state_file)
             datafile = f.read()
-            if datafile[-1]=='\n':
+            if len(datafile)>0 and datafile[-1]=='\n':
                 datafile = datafile[:-1]
             f.close()
+            if not os.path.exists(datafile):
+                os.remove(self.state_file)
+                datafile = join(exedir, 'demo_data.txt')
         else:
             datafile = join(exedir, 'demo_data.txt')
         return datafile
@@ -789,15 +792,24 @@ class Yasso(HasTraits):
         active = None
         data = defaultdict(list)
         alldata = ''
+        linecount = 0
         for line in datafile:
+            linecount += 1
             alldata += line
             m = re.match(sectionp, line)
             if m is not None:
                 active = m.group(1)
             d = re.match(datap, line)
             if d is not None:
-                vals = [float(val) for val in d.group(0).split()]
-                data[active].append(vals)
+                try:
+                    vals = [float(val) for val in d.group(0).split()]
+                    data[active].append(vals)
+                except ValueError:
+                    errmsg="There's an error on line %s\n  %s"\
+                        "for section %s\n"\
+                        "Values must be space separated and . is the decimal"\
+                        " separator" % (linecount, d.group(0), active)
+                    error(errmsg, title='Error saving data', buttons=['OK'])
         self.all_data = alldata
         for section, vallist in data.items():
             if section=='Initial state':
@@ -899,14 +911,14 @@ class Yasso(HasTraits):
             self.yearly_litter.append(obj)
 
     def _set_area_change(self, data):
-        errmsg = 'Area change should contain: \n'\
-                 ' timestep, relative area change'
+        errmsg = 'Area change should contain:\n  timestep, relative area change'
         for vals in data:
             if len(vals)==2:
                 obj = AreaChange(timestep=int(vals[0]),
                           rel_change=vals[1])
                 self.area_change.append(obj)
             elif vals!=[]:
+                errmsg = errmsg + '\n%s data values found, 2 needed' % (len(data))
                 error(errmsg, title='error reading data',
                       buttons=['OK'])
                 break
@@ -922,6 +934,7 @@ class Yasso(HasTraits):
                           variation_amplitude=vals[3])
                 self.yearly_climate.append(obj)
             elif vals!=[]:
+                errmsg = errmsg + '\n%s data values found, 4 needed' % (len(data))
                 error(errmsg, title='error reading data',
                       buttons=['OK'])
                 break
@@ -934,6 +947,7 @@ class Yasso(HasTraits):
             self.constant_climate.annual_rainfall = data[0][1]
             self.constant_climate.variation_amplitude = data[0][2]
         elif data[0]!=[]:
+            errmsg = errmsg + '\n%s data values found, 3 needed' % (len(data))
             error(errmsg, title='error reading data',
                   buttons=['OK'])
 
@@ -947,6 +961,7 @@ class Yasso(HasTraits):
                           rainfall=vals[2])
                 self.monthly_climate.append(obj)
             elif vals!=[]:
+                errmsg = errmsg + '\n%s data values found, 3 needed' % (len(data))
                 error(errmsg, title='Error reading data',
                       buttons=['OK'])
                 break
@@ -971,6 +986,7 @@ class Yasso(HasTraits):
                         humus_std=data[12],
                         size_class=data[13])
             elif data!=[]:
+                errmsg = errmsg + '\n%s data values found, 14 needed' % (len(data))
                 error(errmsg, title='Error reading data',
                       buttons=['OK'])
                 loaded = False
@@ -992,6 +1008,7 @@ class Yasso(HasTraits):
                         humus_std=data[11],
                         size_class=data[12])
             elif data!=[]:
+                errmsg = errmsg + '\n%s data values found, 13 needed' % (len(data))
                 error(errmsg, title='Error reading data',
                       buttons=['OK'])
                 loaded = False
