@@ -22,7 +22,7 @@ from enthought.enable.component_editor import ComponentEditor
 
 from modelcall import ModelRunner
 APP_INFO="""
-Version 1.0
+Version 1.0.1
 
 For detailed information, including a user's manual, see:
 www.environment.fi/syke/yasso
@@ -839,7 +839,7 @@ class Yasso(HasTraits):
 
     def _reset_data(self):
         """
-        Empties all data structures
+        Empties all input data structures
         """
         self.initial_litter = []
         self.steady_state = []
@@ -869,6 +869,7 @@ class Yasso(HasTraits):
                       ' mass, mass std, acid, acid std, water, water std,\n'\
                       ' ethanol, ethanol std, non soluble, non soluble std,'\
                       '\n humus, humus std, size class'
+        self.steady_state = []
         for vals in data:
             ok, obj = self._load_litter_object(vals, errmsg)
             if not ok:
