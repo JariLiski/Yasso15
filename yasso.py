@@ -22,7 +22,7 @@ from enthought.enable.component_editor import ComponentEditor
 
 from modelcall import ModelRunner
 APP_INFO="""
-Version 1.0.1
+Version 1.0.2
 
 For detailed information, including a user's manual, see:
 www.environment.fi/syke/yasso
@@ -641,7 +641,7 @@ class Yasso(HasTraits):
                 pl.value_range.set_bounds(min, max)
         container = GridContainer(stom, swoody, snonwoody, sa, sw, se, sn, sh)
         container.shape = (3,3)
-        container.spacing = (-15,-15)
+        container.spacing = (-8,-8)
         self.stock_plots = container
 
     def _create_change_plots(self, common_scale=False):

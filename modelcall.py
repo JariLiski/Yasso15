@@ -475,7 +475,8 @@ class ModelRunner(object):
             for timestep in ts:
                 ind = numpy.where(dataarr[:,1]==timestep)
                 mean = stats.mean(dataarr[ind[0], dataind])
-                mode = stats.mode(dataarr[ind[0], dataind])
+                mode_res = stats.mode(dataarr[ind[0], dataind])
+                mode = mode_res[0]
                 var = stats.var(dataarr[ind[0], dataind])
                 skew = stats.skew(dataarr[ind[0], dataind])
                 kurtosis = stats.kurtosis(dataarr[ind[0], dataind])
