@@ -55,27 +55,27 @@ if sys_id == 'lin':
 #                target = os.path.join('/usr/lib', file)
 #            print 'Adding', target, 'as', file
 #            libfiles.append((file, target, 'BINARY'))
-
+wx = None
 for item in os.listdir(base):
-    if item.startswith('Traits-'): 
+    if item.lower().startswith('traits-'): 
         traits = os.path.join(base, item)
         print 'added traits from', item
-    if item.startswith('TraitsGUI'): 
+    if item.lower().startswith('traitsgui'): 
         traitsgui = os.path.join(base, item)
         print 'added traitsgui from', item
-    if item.startswith('TraitsBackendWX'): 
+    if item.lower().startswith('traitsbackendwx'): 
         traitswx = os.path.join(base, item)
         print 'added traitswx from', item
-    if item.startswith('Enable'): 
+    if item.lower().startswith('enable'): 
         enable = os.path.join(base, item)
         print 'added enable from', item
-    if item.startswith('Enthought'): 
+    if item.lower().startswith('enthought'): 
         enthought = os.path.join(base, item)
         print 'added enthought from', item
-    if item.startswith('Chaco'): 
+    if item.lower().startswith('chaco'): 
         chaco = os.path.join(base, item)
         print 'added chaco from', item
-    if item.startswith('wx-'): 
+    if item.lower().startswith('wx-'): 
         wx = os.path.join(base, item)
         print 'added wx from', item
 
@@ -123,8 +123,8 @@ exe = EXE(#TkPKG(),
           a.binaries+libfiles,
           a.zipfiles,
           name=os.path.join('dist', exename),
-          debug= False,
+          debug= True,
           strip=False,
           upx=False,
           icon='yasso.ico',
-          console=False )
+          console=True )

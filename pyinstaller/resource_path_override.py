@@ -6,10 +6,10 @@ import os
 will always point to the archive_path instead of whatever was frozen into it.
 WARNING: Do not create an instance of this class before the archives have been extracted!
 """
-class ResourcePathOverride(object):    
+class ResourcePathOverride(object):
     resource_path_orig = None
     archive_path = None
-    
+
     def __init__(self, archive_path):
         import enthought.resource.resource_path #here, so that you can import the module freely (at least in theory)
         self.resource_path_orig = enthought.resource.resource_path.resource_path
@@ -17,7 +17,7 @@ class ResourcePathOverride(object):
         enthought.resource.resource_path.resource_path = self.resource_path
         #print "Replaced", self.resource_path_orig, "with", self.resource_path, #DEBUG
         #print "as proven by", enthought.resource.resource_path.resource_path #DEBUG
-         
+
     def resource_path(self, level = 2):
         path = self.resource_path_orig(level+1)
         #print "KEY INTEL, PATH INFO:", path #DEBUG
@@ -27,20 +27,20 @@ class ResourcePathOverride(object):
         #print "root", root #DEBUG
         path = os.path.join(self.archive_path, self.get_pkg_name(root[1]), 'enthought', path[1])
         #print "final", path #DEBUG
-        return path        
-        
+        return path
+
     def get_pkg_name(self, path):
         """This function must mirror the list in yasso.spec
         """
-        if path.startswith('Traits-'): 
+        if path.lower().startswith('traits-'):
             return 'traits'
-        if path.startswith('TraitsGUI'): 
+        if path.lower().startswith('traitsgui'):
             return 'traitsgui'
-        if path.startswith('TraitsBackendWX'): 
+        if path.lower().startswith('traitsbackendwx'):
             return 'traitswx'
-        if path.startswith('Enable'): 
+        if path.lower().startswith('enable'):
             return 'enable'
-        if path.startswith('Enthought'): 
+        if path.lower().startswith('enthought'):
             return 'enthought'
-        if path.startswith('Chaco'): 
+        if path.lower().startswith('chaco'):
             return 'chaco'
