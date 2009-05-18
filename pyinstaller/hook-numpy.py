@@ -1,1 +1,1 @@
-hiddenimports = ['activex', 'pkg_resources']
+hiddenimports = ['activex', 'pkg_resources', 'platform']
