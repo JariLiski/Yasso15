@@ -123,8 +123,8 @@ exe = EXE(#TkPKG(),
           a.binaries+libfiles,
           a.zipfiles,
           name=os.path.join('dist', exename),
-          debug= True,
+          debug= False,
           strip=False,
           upx=False,
           icon='yasso.ico',
-          console=True )
+          console=False )
