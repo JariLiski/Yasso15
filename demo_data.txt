@@ -455,18 +455,18 @@
 # Data: month, mean temperature, precipitation
 #
 # Example: Boreal climate
-1 -7.3 528
-2 -6.6 360
-3 -3.1 312
-4 2.5 420
-5 8.6 504
-6 13 768
-7 15.5 996
-8 13.8 1044
-9 9.1 852
-10 3.7 624
-11 -0.8 720
-12 -4.1 588
+1 -7.3 44
+2 -6.6 30
+3 -3.1 26
+4 2.5 35
+5 8.6 42
+6 13 64
+7 15.5 83
+8 13.8 87
+9 9.1 71
+10 3.7 52
+11 -0.8 60
+12 -4.1 49
 
 [Yearly climate]
 # Data: year, mean temperature, precipitation, amplitude of monthly mean 
