@@ -6,17 +6,24 @@ import colorsys
 import shelve
 import cgi
 
+ETS_INSTALL = 'EPD'
 #if hasattr(sys, 'frozen'):
 #    __file__ = ''.join((os.path.dirname(sys.executable), 'unpackMetadata.py'))
 
 this = carchive.CArchive(sys.executable)
 archives = os.environ['_MEIPASS2']
-pkgs = ['wx', 'traits', 'traitswx', 'chaco', 'enthought', 'enable', 'traitsgui']
+# on OS X this will be behind a symbolic link which will cause import troubles
+sys.path.append(os.path.realpath(archives))
+if ETS_INSTALL == 'EPD':
+    pkgs = ['wx', 'enthought']
+else:
+    pkgs = ['wx', 'traits', 'traitswx', 'chaco', 'enthought', 'enable',
+            'traitsgui']
 for pkg in pkgs:
     mp = this.openEmbedded('%s.pkg' % pkg)
-    targetdir = os.path.join(archives,pkg)
+    targetdir = os.path.join(archives, pkg)
     os.mkdir(targetdir)
-    print "Extracting %s ..." % pkg,
+    print "Extracting %s ..." % (pkg, )
     for fnm in mp.contents():
         try:
             stuff = mp.extract(fnm)[1]
@@ -28,24 +35,31 @@ for pkg in pkgs:
         except Exception, mex:
             print mex
     mp = None
-    sys.path.insert(0, targetdir) 
-    if pkg == 'traitsgui':
-        imagepath = os.path.join(targetdir, 'enthought', 'traits', 'ui', 'image', 'library')
+    sys.path.insert(0, targetdir)
+    if pkg == 'enthought':
+        if ETS_INSTALL == 'EPD':
+            imagepath = os.path.join(targetdir, 'traits', 'ui',
+                                     'image', 'library')
+        else:
+            imagepath = os.path.join(targetdir, 'enthought', 'traits', 'ui',
+                                     'image', 'library')
         os.environ['TRAITS_IMAGES'] = imagepath
         os.putenv('TRAITS_IMAGES', imagepath)
     print "ok"
 
+import pdb; pdb.set_trace()
 import code, keyword
 import wx
 import wx.html
 import wx.lib.scrolledpanel
 from wx import *
 
-from resource_path_override import ResourcePathOverride    
-resource_override = ResourcePathOverride(archives)
+if ETS_INSTALL != 'EPD':
+    from resource_path_override import ResourcePathOverride
+    resource_override = ResourcePathOverride(archives)
 
-#DEBUG        
-#print "Files are at", archives 
+#DEBUG
+#print "Files are at", archives
 #print "sys.path is:"
 #for i in sys.path: print i
 #raw_input("press enter to continue...")
