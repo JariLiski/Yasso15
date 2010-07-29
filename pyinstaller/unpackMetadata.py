@@ -47,7 +47,6 @@ for pkg in pkgs:
         os.putenv('TRAITS_IMAGES', imagepath)
     print "ok"
 
-import pdb; pdb.set_trace()
 import code, keyword
 import wx
 import wx.html
