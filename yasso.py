@@ -22,7 +22,7 @@ from enthought.enable.component_editor import ComponentEditor
 
 from modelcall import ModelRunner
 APP_INFO="""
-Version 1.0.2
+Version 1.0.4
 
 For detailed information, including a user's manual, see:
 www.environment.fi/syke/yasso

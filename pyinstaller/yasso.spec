@@ -6,7 +6,8 @@ import re
 import fnmatch
 import enthought
 
-ETS_INSTALL = 'EPD'
+#ETS_INSTALL = 'EPD'
+ETS_INSTALL = 'pypi'
 
 sys_id = str.lower(sys.platform[:3])
 libfiles = []

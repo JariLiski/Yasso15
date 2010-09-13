@@ -6,7 +6,9 @@ import colorsys
 import shelve
 import cgi
 
-ETS_INSTALL = 'EPD'
+#ETS_INSTALL = 'EPD'
+ETS_INSTALL = 'pypi'
+
 #if hasattr(sys, 'frozen'):
 #    __file__ = ''.join((os.path.dirname(sys.executable), 'unpackMetadata.py'))
 
