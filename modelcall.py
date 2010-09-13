@@ -375,8 +375,12 @@ class ModelRunner(object):
                 e_std += mass * litter.ethanol_std
                 n_std += mass * litter.non_soluble_std
                 h_std += mass * litter.humus_std
-            tome[sc] = [m , m_std / m, a / m, a_std / m, w / m, w_std / m,
-                        e / m, e_std / m, n / m, n_std / m, h / m, h_std / m]
+            if m > 0.:
+                tome[sc] = [m , m_std / m, a / m, a_std / m, w / m, w_std / m,
+                            e / m, e_std / m, n / m, n_std / m,
+                            h / m, h_std / m]
+            else:
+                tome[sc] = [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]
 
     def _draw_from_distr(self, values, pairs, randomize):
         """
