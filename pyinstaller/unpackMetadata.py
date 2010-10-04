@@ -38,12 +38,12 @@ for pkg in pkgs:
             print mex
     mp = None
     sys.path.insert(0, targetdir)
-    if pkg == 'enthought':
-        if ETS_INSTALL == 'EPD':
-            imagepath = os.path.join(targetdir, 'traits', 'ui',
-                                     'image', 'library')
-        else:
-            imagepath = os.path.join(targetdir, 'enthought', 'traits', 'ui',
+    if ETS_INSTALL == 'EPD' and pkg == 'enthought':
+        imagepath = os.path.join(targetdir, 'traits', 'ui', 'image', 'library')
+        os.environ['TRAITS_IMAGES'] = imagepath
+        os.putenv('TRAITS_IMAGES', imagepath)
+    elif ETS_INSTALL == 'pypi' and pkg == 'traitsgui':
+        imagepath = os.path.join(targetdir, 'enthought', 'traits', 'ui',
                                      'image', 'library')
         os.environ['TRAITS_IMAGES'] = imagepath
         os.putenv('TRAITS_IMAGES', imagepath)

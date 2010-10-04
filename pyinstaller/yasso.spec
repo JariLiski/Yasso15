@@ -135,8 +135,9 @@ else:
               a.binaries+libfiles,
               a.zipfiles,
               name=pth.join('dist', exename),
-              debug= False,
+              debug= True,
               strip=False,
               upx=False,
               icon='yasso.ico',
-              console=False )
+              console=True )
+
