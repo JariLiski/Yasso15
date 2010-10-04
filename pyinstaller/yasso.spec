@@ -117,7 +117,7 @@ if ETS_INSTALL == 'EPD':
               a.binaries+libfiles,
               a.zipfiles,
               name=pth.join('dist', exename),
-              debug= False,
+              debug=False,
               strip=False,
               upx=False,
               icon='yasso.ico',
@@ -135,9 +135,9 @@ else:
               a.binaries+libfiles,
               a.zipfiles,
               name=pth.join('dist', exename),
-              debug= True,
+              debug=False,
               strip=False,
               upx=False,
               icon='yasso.ico',
-              console=True )
+              console=False)
 
