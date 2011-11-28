@@ -1,28 +1,34 @@
 #!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
 from collections import defaultdict
 import re
 import sys
 import os
+import glob
 from numpy import empty, float32
-from datetime import date
-from enthought.traits.api import Array, Button, Enum, Float, HasTraits,\
-    Instance, Int, List, Property, Range, Str
-from enthought.traits.ui.api import CodeEditor, Group, HGroup, VGroup, Item,\
+from traits.api import Array, Button, Enum, Float, HasTraits,\
+    Instance, Int, List, Range, Str
+from traitsui.api import CodeEditor, Group, HGroup, VGroup, Item,\
     Label, spring, TabularEditor, View
-from enthought.traits.ui.menu import \
+from traitsui.menu import \
     UndoAction, RedoAction, RevertAction, CloseAction, \
     Menu, MenuBar, NoButtons
-from enthought.traits.ui.file_dialog import open_file, save_file
-from enthought.traits.ui.message import error
-from enthought.traits.ui.tabular_adapter import TabularAdapter
-from enthought.chaco.api import ArrayPlotData, Plot, GridContainer
-from enthought.enable.component_editor import ComponentEditor
+from traitsui.file_dialog import open_file, save_file
+from traitsui.message import error
+from traitsui.tabular_adapter import TabularAdapter
+from chaco.api import ArrayPlotData, Plot, GridContainer
+from enable.component_editor import ComponentEditor
 
 from modelcall import ModelRunner
+import sys
+
+# Redirecting stderr
+sys.stderr = open('yasso_stderr.log', 'w')
+
 APP_INFO="""
-Version 1.0.4
+Version 1.1.0
 
 For detailed information, including a user's manual, see:
 www.environment.fi/syke/yasso
@@ -33,8 +39,14 @@ Program wiki is at code.google.com/p/yasso07ui
 Yasso07 model by Finnish Environment Institute (SYKE, www.environment.fi)
 User interface by Simosol Oy (www.simosol.fi)
 
-The program is distributed under the GNU General Public License (GLPv3)
+The program is distributed under the GNU Lesser General Public License (LGPL)
 The source code is available at code.google.com/p/yasso07ui/
+"""
+PARAMETER_SET_HELP = """
+The model calibration data set on which the model run parameterisation will be based on
+"""
+LEACHING_HELP = """
+Leaching rate
 """
 INITIAL_STATE_HELP = """
 There are three alternative ways to give the initial soil carbon stock to Yasso07,<ul>1) the stock specified by user</ul>
@@ -133,6 +145,33 @@ DATA_STRING = """
 [Monthly climate]
 # Data: timestep, mean temperature, precipitation
 """
+
+def _get_parameter_files():
+    """
+    Extracts the available parameter files from the param sub folder
+    """
+    fn = os.path.split(sys.executable)
+    if fn[1].lower().startswith('python'):
+        exedir = os.path.abspath(os.path.split(sys.argv[0])[0])
+    else:
+        exedir = fn[0]
+    join = os.path.join
+    pdir = join(exedir, 'param')
+    if os.path.exists(pdir):
+        p_files = glob.glob(join(pdir, '*.dat'))
+        pset = []
+        for f in p_files:
+            p = os.path.basename(f).split('.')[0]
+            pset.append(p)
+        return pset
+    else:
+        errmsg = 'The model parameter directory param is missing. '\
+                 'It must be in the same directory as the program '\
+                 'executable'
+        error(errmsg, title='Error starting the program',
+              buttons=['OK'])
+        sys.exit(-1)
+
 ###############################################################################
 # Basic data container classes
 ###############################################################################
@@ -287,6 +326,10 @@ class Yasso(HasTraits):
     """
     The Yasso model
     """
+    # Parameters
+    p_sets = _get_parameter_files()
+    parameter_set = Enum(p_sets)
+    leaching = Float(default_value=0.0)
     # Initial condition
     initial_mode = Enum(['non zero', 'zero', 'steady state'])
     initial_litter = List(trait=LitterComponent)
@@ -404,6 +447,14 @@ class Yasso(HasTraits):
             label='All data',
             ),
         VGroup(
+            HGroup(
+                Item('parameter_set', width=-145,
+                     help=PARAMETER_SET_HELP),
+                Item('leaching', width=-45,
+                     label='Leaching parameter',
+                     help=LEACHING_HELP,),
+                show_border=True
+            ),
             VGroup(
                 HGroup(
                     Item(name='initial_mode', style='custom',
@@ -562,15 +613,12 @@ class Yasso(HasTraits):
     def __init__(self):
         self.sample_size = 10
         self.simulation_length = 10
-        join = os.path.join
         fn = os.path.split(sys.executable)
         if fn[1].lower().startswith('python'):
             exedir = os.path.abspath(os.path.split(sys.argv[0])[0])
             self.data_file = self._get_data_file_path(exedir)
-            parfile = join(os.path.abspath(exedir), 'yasso_param.dat')
         else:
             self.data_file = self._get_data_file_path(fn[0])
-            parfile = join(fn[0], 'yasso_param.dat')
         try:
             f = open(self.data_file)
             self._load_all_data(f)
@@ -578,16 +626,6 @@ class Yasso(HasTraits):
         except:
             self.all_data = DATA_STRING
             self.data_file = ''
-        # the model
-        if os.path.exists(parfile):
-            self.yassorunner = ModelRunner(parfile)
-        else:
-            errmsg = 'The model parameter file yasso_param.dat is missing. '\
-                     'It must be in the same directory as the program '\
-                     'executable'
-            error(errmsg, title='Error starting the program',
-                  buttons=['OK'])
-            sys.exit(-1)
 
     def _get_data_file_path(self, exedir):
         join = os.path.join
@@ -714,6 +752,15 @@ class Yasso(HasTraits):
 ########################
 
     def _modelrun_event_fired(self):
+        # set the parameter set to use
+        fn = os.path.split(sys.executable)
+        if fn[1].lower().startswith('python'):
+            exedir = os.path.abspath(os.path.split(sys.argv[0])[0])
+        else:
+            exedir = fn[0]
+        pdir = os.path.join(exedir, 'param')
+        parfile = os.path.join(pdir, '%s.dat' % self.parameter_set)
+        self.yassorunner = ModelRunner(parfile)
         if self.initial_mode=='steady state':
             steady_state = self.yassorunner.compute_steady_state(self)
             self._set_steady_state(steady_state)

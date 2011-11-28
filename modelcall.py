@@ -12,8 +12,8 @@ from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 import random
 import stats
-from enthought.pyface.api import ProgressDialog
-from enthought.traits.ui.message import error
+from pyface.api import ProgressDialog
+from traitsui.message import error
 
 # the order in which data comes in (defined by list index) and in which
 # it should passed to the model (defined in the tuple)
@@ -22,9 +22,7 @@ VALUESPEC = [('mass', None), ('acid', 0), ('water', 1), ('ethanol', 2),
 STARTDATE = date(2, 1, 1)
 STEADY_STATE_TIMESTEP = 10000.
 # constants for the model parameters
-PARAM_SAMPLES = 100000
-PARAM_COUNT = 45
-PARAM_F = '45f'
+PARAM_SAMPLES = 10000
 
 class ModelRunner(object):
     """
@@ -37,7 +35,10 @@ class ModelRunner(object):
         """
         Constructor.
         """
-        self.parfile = parfile
+        self.param_set = []
+        with open(parfile) as f:
+            for line in f:
+                self.param_set.append([float(v.strip()) for v in line.split()])
 
     def compute_steady_state(self, modeldata):
         """
@@ -57,11 +58,10 @@ class ModelRunner(object):
         self.infall = {}
         self.initial_mode = 'zero'
         timemsg = None
-        with open(self.parfile, 'rb') as self.f:
-            for j in range(samplesize):
-                self.draw = True
-                self._predict_steady_state(j)
-                self.ml_run = False
+        for j in range(samplesize):
+            self.draw = True
+            self._predict_steady_state(j)
+            self.ml_run = False
         self._steadystate2initial()
         return self.ss_result
 
@@ -90,17 +90,16 @@ class ModelRunner(object):
         else:
             self.initial_def = self.md.initial_litter
         timemsg = None
-        with open(self.parfile, 'rb') as self.f:
-            for j in range(samplesize):
-                (cont, skip) = progress.update(j)
-                if not cont or skip:
-                    break
-                self.draw = True
-                self.curr_yr_ind = 0
-                self.curr_month_ind = 0
-                for k in range(timesteps):
-                    self._predict_timestep(j, k)
-                self.ml_run = False
+        for j in range(samplesize):
+            (cont, skip) = progress.update(j)
+            if not cont or skip:
+                break
+            self.draw = True
+            self.curr_yr_ind = 0
+            self.curr_month_ind = 0
+            for k in range(timesteps):
+                self._predict_timestep(j, k)
+            self.ml_run = False
         self._fill_moment_results()
         progress.update(samplesize)
         if timemsg is not None:
@@ -646,15 +645,10 @@ class ModelRunner(object):
         # model parameters
         if self.ml_run:
             # maximum likelihood estimates for the model parameters
-            self.f.seek(0, 0)
-            packed = self.f.read(4*PARAM_COUNT)
-            self.param = struct.unpack(PARAM_F, packed)
+            self.param = self.param_set[0]
         elif self.draw:
             which = random.randint(1, PARAM_SAMPLES - 1)
-            pos = which * PARAM_COUNT * 4
-            self.f.seek(pos, 0)
-            packed = self.f.read(4*PARAM_COUNT)
-            self.param = struct.unpack(PARAM_F, packed)
+            self.param = self.param_set[which]
         # and mean values for the initial state and input
         if self.ml_run:
             initial = self._draw_from_distr(initial, VALUESPEC, False)
@@ -680,7 +674,8 @@ class ModelRunner(object):
             inf = na(self.infall[sc], dtype=f32) / dur
         cl = na([climate['temp'], climate['rain'], climate['amplitude']],
                 dtype=f32)
-        endstate = y07.yasso.mod5c(par, dur, cl, init, inf, sc)
+        leach = self.md.leaching
+        endstate = y07.yasso.mod5c(par, dur, cl, init, inf, sc, leach)
         self.ts_initial += sum(initial)
         self.ts_infall += sum(self.infall[sc])
         return init, endstate

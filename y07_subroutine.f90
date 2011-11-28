@@ -1,20 +1,19 @@
 MODULE yasso
 IMPLICIT NONE
 CONTAINS
-  SUBROUTINE mod5c(a,t,cl,init,inf,s,z) !components separately
+  SUBROUTINE mod5c(a,t,cl,init,inf,s,leac,z) !components separately
   IMPLICIT NONE
-    !*********************************************
-    !GENERAL DESCRIPTION FOR ALL THE MEASUREMENTS
-    !*********************************************
+    !********************************************* &
+     !GENERAL DESCRIPTION FOR ALL THE MEASUREMENTS
+    !********************************************* &
     !returns the model prediction for given parameters
     ! 1-16 matrix A entries: 4*k, 12*p
-    !17-25 T-dependence parameters: b1, b2, -, -, -, -, -, -, -
-    !26-34 P-dependence parameters: g1, -, -, -, -, -, -, -, -
-    !35-38 Humus parametens: kH, pH, -, -
-    !39-42 Woody parameters: -, -, -, -
-    !43-44 Other system parameters: S, -
-    REAL,DIMENSION(45),INTENT(IN) :: a !parameters
-    REAL,INTENT(IN) :: t,s !time,size
+    !17-19 Climate-dependence parameters: b1, b2, g1
+    !20-22 Leaching parameters: f1, f2, f3 IGNORED IN THE Y07-UI
+    !23-25 Woody parameters
+    !26-27 Humus parametens: kH, pH
+    REAL,DIMENSION(27),INTENT(IN) :: a !parameters
+    REAL,INTENT(IN) :: t,s,leac !time,size,leaching
     REAL,DIMENSION(3),INTENT(IN) :: cl !climatic conditions
     REAL,DIMENSION(5),INTENT(IN) :: init
     REAL,DIMENSION(5),INTENT(IN) :: inf !infall
@@ -35,12 +34,12 @@ CONTAINS
       tem=tem+EXP(a(17)*te(i)+a(18)*te(i)**2.0)/4.0 !Gaussian
     END DO
     !Precipitation dependence
-    tem=tem*(1.0-EXP(a(26)*cl(2)/1000))
+    tem=tem*(1.0-EXP(a(19)*cl(2)/1000))
     !Size class dependence -- no effect if sc = 0.0
-    m(1,1)=a(1)*tem*(s*a(39)+s**2.0*a(40)+1.0)**a(41)
-    m(2,2)=a(2)*tem*(s*a(39)+s**2.0*a(40)+1.0)**a(41)
-    m(3,3)=a(3)*tem*(s*a(39)+s**2.0*a(40)+1.0)**a(41)
-    m(4,4)=a(4)*tem*(s*a(39)+s**2.0*a(40)+1.0)**a(41)
+    m(1,1)=a(1)*tem*MIN(1.0,(1.0+a(23)*s+a(24)*s**2.0)**a(25))
+    m(2,2)=a(2)*tem*MIN(1.0,(1.0+a(23)*s+a(24)*s**2.0)**a(25))
+    m(3,3)=a(3)*tem*MIN(1.0,(1.0+a(23)*s+a(24)*s**2.0)**a(25))
+    m(4,4)=a(4)*tem*MIN(1.0,(1.0+a(23)*s+a(24)*s**2.0)**a(25))
     !Calculating matrix M, normal
     m(2,1)=a(5)*ABS(m(2,2))
     m(3,1)=a(6)*ABS(m(3,3))
@@ -58,14 +57,20 @@ CONTAINS
     m(2,4)=a(15)*ABS(m(2,2))
     m(3,4)=a(16)*ABS(m(3,3))
     m(5,4)=0.0
-    m(5,5)=a(35)*tem !no size effect in humus
+    m(5,5)=a(26)*tem !no size effect in humus
     DO i=1,4
-      m(i,5)=a(36)*ABS(m(i,i)) !mass flows EWAN -> H
+      m(i,5)=a(27)*ABS(m(i,i)) !mass flows EWAN -> H
     END DO
+    !Leaching
+    m(1,1)=m(1,1)+leac*cl(2)/1000
+    m(2,2)=m(2,2)+leac*cl(2)/1000
+    m(3,3)=m(3,3)+leac*cl(2)/1000
+    m(4,4)=m(4,4)+leac*cl(2)/1000
+    !DY solution starts here...
     DO i=1,5
       z1(i)=DOT_PRODUCT(m(:,i),init)+inf(i)
     END DO
-    mt=m*t
+    mt=m*t 
     CALL matrixexp(mt,m2)
     DO i=1,5
       z2(i)=DOT_PRODUCT(m2(:,i),z1)-inf(i)
