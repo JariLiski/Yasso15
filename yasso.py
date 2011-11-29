@@ -46,7 +46,7 @@ PARAMETER_SET_HELP = """
 The model calibration data set on which the model run parameterisation will be based on
 """
 LEACHING_HELP = """
-Leaching rate
+Litter bag adjustment coefficient due to leaching and effect on decomposers
 """
 INITIAL_STATE_HELP = """
 There are three alternative ways to give the initial soil carbon stock to Yasso07,<ul>1) the stock specified by user</ul>
@@ -451,7 +451,7 @@ class Yasso(HasTraits):
                 Item('parameter_set', width=-145,
                      help=PARAMETER_SET_HELP),
                 Item('leaching', width=-45,
-                     label='Leaching parameter',
+                     label='Litter bag adjustment coefficient',
                      help=LEACHING_HELP,),
                 show_border=True
             ),
