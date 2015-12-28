@@ -1,22 +1,31 @@
 #!/usr/bin/env python
-#!/usr/bin/env python
 # -*- coding: UTF-8 -*-
 
 from collections import defaultdict
+import ConfigParser
+import codecs
 import re
 import sys
 import os
 import glob
+
+
+# Redirecting stderr
+sys.stderr = codecs.open('yasso_stderr.log', 'w', 'utf8')
+
 from numpy import empty, float32
+
 from traits.api import Array, Button, Enum, Float, HasTraits,\
     Instance, Int, List, Range, Str
+    
 from traitsui.api import CodeEditor, Group, HGroup, VGroup, Item,\
-    Label, spring, TabularEditor, View
+    Label, spring, TabularEditor, View, EnumEditor
 from traitsui.menu import \
     UndoAction, RedoAction, RevertAction, CloseAction, \
     Menu, MenuBar, NoButtons
 from traitsui.file_dialog import open_file, save_file
 from traitsui.message import error
+from traits.trait_errors import TraitError
 from traitsui.tabular_adapter import TabularAdapter
 from chaco.api import ArrayPlotData, Plot, GridContainer
 from enable.component_editor import ComponentEditor
@@ -24,79 +33,25 @@ from enable.component_editor import ComponentEditor
 from modelcall import ModelRunner
 import sys
 
-# Redirecting stderr
-sys.stderr = open('yasso_stderr.log', 'w')
 
 APP_INFO="""
-Version 1.1.0
-
 For detailed information, including a user's manual, see:
-www.environment.fi/syke/yasso
+http://www.syke.fi/projects/yasso
 
 Inside the program help is available by clicking the label texts.
-Program wiki is at code.google.com/p/yasso07ui
+Program wiki is at https://github.com/JariLiski/Yasso15
 
-Yasso07 model by Finnish Environment Institute (SYKE, www.environment.fi)
+Yasso15 model by Finnish Environment Institute (SYKE, www.environment.fi)
 User interface by Simosol Oy (www.simosol.fi)
 
 The program is distributed under the GNU Lesser General Public License (LGPL)
-The source code is available at code.google.com/p/yasso07ui/
+The source code is available at https://github.com/JariLiski/Yasso15
 """
-PARAMETER_SET_HELP = """
-The model calibration data set on which the model run parameterisation will be based on
-"""
-LEACHING_HELP = """
-Litter bag adjustment parameter due to leaching and effect on decomposers
-"""
-INITIAL_STATE_HELP = """
-There are three alternative ways to give the initial soil carbon stock to Yasso07,<ul>1) the stock specified by user</ul>
-<ul>2) the stock set equal to zero</ul>
-<ul>3) a steady-state stock calculated with the model based on carbon input to soil in the beginning of the simulation</ul>
-<p>If the soil carbon input is set to be yearly or monthly, the input from <b>timestep 0</b> is used to compute the steady state. If no input for timestep 0 is defined, input from <b>step 1</b> is used. Input from timestep 0 is not used in the actual simulation run; i.e., it's only used for steady state prediction.</p>
-"""
-SOIL_CARBON_INPUT_HELP = """
-Soil carbon input can be one of
-<ul>1) yearly time series</ul>
-<ul>2) yearly constant values</ul>
-<ul>3) monthly time series</ul>
-<p><b>Area change</b>: for time series input you can define timesteps when the area under simulation changes. The changes are given as relative changes meaning that a change of 0.01 increases the area by 1 % and a change of -0.1 reduces it by 10 %. The change in area will be directly reflected in the initial carbon stock in soil for the next timestep</p>
-<p>If the simulation run is longer than the defined time series, no input is used for the remaining time.</p>
-<p>Note that if you define input for the timestep 0 for yearly or monthly timeseries, it will be used only for the steady state prediction. In the absence of timestep 0 data, the steady state prediction will be based on the input of timestep 1</p>
-"""
-CLIMATE_HELP = """
-Climate definition can be one of
-<ul>1) yearly time series</ul>
-<ul>2) yearly constant values</ul>
-<ul>3) monthly time series</ul>
-<p>In case of the time series, the series will be applied several times if the simulation run is longer than the defined series; i.e., when the last values from the series are used in the simulation, for the next step the values from the beginning of the climate series will be used.</p>
-<p>Note that the <b>monthly time series</b> is limited to 12 months; i.e., it is used to define the climate variation within a single year, for a simulation covering several years, the same climate is applied repeatedly.
-<p>For <b>steady state prediction</b>, yearly climate from timestep 0 is used if defined, otherwise the climate from step 1 will be used.
-"""
-SAMPLE_SIZE_HELP = """
-Number of parameter combinations to be used in the simulation.
-"""
-SIMULATION_LENGTH_HELP = """
-The number of timesteps of the simulation
-"""
-TIMESTEP_LENGTH_HELP = """
-The duration of each timestep in the simulation
-"""
-WOODY_SIZE_LIMIT_HELP = """
-Minimum size of litter (diameter in cm) classified in the results as woody organic matter. Litter components having smaller size classes than the limit as classified as non-woody organic matter.
-"""
-SHOW_HELP = """
-Besides evaluating the values on the screen, the simulation results can be saved to a file in two formats
-<ul>1) raw results based on each parameter combination used for the simulation</ul>
-<ul>2) statistical characteristics calculated from the raw results.</ul>
-<p>The result files will contain a header detailing the contents of the file and the settings used to derive the values</p>
-"""
-AS_HELP = """
-The charts illustrate the most probable values and their 95 % error estimates (based on the normality assumption).
-"""
+
 DATA_STRING = """
 # THE CHANGES YOU MAKE HERE HAVE ONLY EFFECT AFTER YOU SAVE THE CHANGES
 #
-# commented out rows begin with the # chacter
+# commented out rows begin with the # character
 # numbers must be whitespace separated (space or tab)
 # decimal separator is ., no thousands separator
 #
@@ -145,6 +100,9 @@ DATA_STRING = """
 [Monthly climate]
 # Data: timestep, mean temperature, precipitation
 """
+from pyface.image_resource import ImageResource
+app_ir = ImageResource("yasso.ico")
+
 
 def _get_parameter_files():
     """
@@ -163,8 +121,10 @@ def _get_parameter_files():
         for f in p_files:
             p = os.path.basename(f).split('.')[0]
             pset.append(p)
+        
         return pset
     else:
+        print "Not finding the parameter directory", pdir
         errmsg = 'The model parameter directory param is missing. '\
                  'It must be in the same directory as the program '\
                  'executable'
@@ -175,6 +135,7 @@ def _get_parameter_files():
 ###############################################################################
 # Basic data container classes
 ###############################################################################
+
 class LitterComponent(HasTraits):
     mass = Float()
     mass_std = Float()
@@ -225,6 +186,7 @@ class MonthlyClimate(HasTraits):
 # Table editors
 ###############################################################################
 
+
 class MonthlyClimateAdapter(TabularAdapter):
     columns = [('month', 'month'), ('temperature', 'temperature'),
                ('rainfall', 'rainfall')]
@@ -250,12 +212,12 @@ yearly_climate_te = TabularEditor(
 
 class LitterAdapter(TabularAdapter):
     columns = [('mass', 'mass'),
-               ('mass std', 'mass_std'), ('acid', 'acid'),
-               ('acid std', 'acid_std'), ('water', 'water'),
-               ('water std', 'water_std'), ('ethanol', 'ethanol'),
-               ('ethanol std', 'ethanol_std'), ('non soluble', 'non_soluble'),
-               ('non soluble std', 'non_soluble_std'), ('humus', 'humus'),
-               ('humus std', 'humus_std'), ('size class', 'size_class')]
+               ('mass std', 'mass_std'), ('A', 'acid'),
+               ('A std', 'acid_std'), ('W', 'water'),
+               ('W std', 'water_std'), ('E', 'ethanol'),
+               ('E std', 'ethanol_std'), ('N', 'non_soluble'),
+               ('N std', 'non_soluble_std'), ('H', 'humus'),
+               ('H std', 'humus_std'), ('size class', 'size_class')]
     font = 'Arial 9'
     acid_width = 50
     acid_std_width = 50
@@ -279,12 +241,12 @@ change_te = TabularEditor(
 
 class TimedLitterAdapter(TabularAdapter):
     columns = [('timestep', 'timestep'),('mass', 'mass'),
-               ('mass std', 'mass_std'), ('acid', 'acid'),
-               ('acid std', 'acid_std'), ('water', 'water'),
-               ('water std', 'water_std'), ('ethanol', 'ethanol'),
-               ('ethanol std', 'ethanol_std'), ('non soluble', 'non_soluble'),
-               ('non soluble std', 'non_soluble_std'), ('humus', 'humus'),
-               ('humus std', 'humus_std'), ('size class', 'size_class')]
+               ('mass std', 'mass_std'), ('A', 'acid'),
+               ('A std', 'acid_std'), ('W', 'water'),
+               ('W std', 'water_std'), ('E', 'ethanol'),
+               ('E std', 'ethanol_std'), ('N', 'non_soluble'),
+               ('N std', 'non_soluble_std'), ('H', 'humus'),
+               ('H std', 'humus_std'), ('size class', 'size_class')]
     font = 'Arial 9'
     acid_width = 50
     acid_std_width = 50
@@ -317,10 +279,12 @@ class CO2YieldAdapter(TabularAdapter):
 co2_yield_te = TabularEditor(
     adapter = CO2YieldAdapter(),
    )
+   
 
 ###############################################################################
 # Yasso model
 ###############################################################################
+
 
 class Yasso(HasTraits):
     """
@@ -328,17 +292,20 @@ class Yasso(HasTraits):
     """
     # Parameters
     p_sets = _get_parameter_files()
+    
+    
     parameter_set = Enum(p_sets)
-    leaching = Float(default_value=0.0)
+    leaching = Float()
     # Initial condition
     initial_mode = Enum(['non zero', 'zero', 'steady state'])
     initial_litter = List(trait=LitterComponent)
     steady_state = List(trait=LitterComponent)
     # Litter input at each timestep in the simulation
-    litter_mode = Enum(['yearly', 'constant yearly', 'monthly'])
+    litter_mode = Enum(['zero', 'yearly', 'constant yearly', 'monthly'])
     constant_litter = List(trait=LitterComponent)
     monthly_litter = List(trait=TimedLitterComponent)
     yearly_litter = List(trait=TimedLitterComponent)
+    zero_litter = List(trait=LitterComponent) # Assumes that this defaults to 0
     woody_size_limit = Float(default_value=3.0)
     area_change = List(trait=AreaChange)
     # Climate definition for the simulation
@@ -424,6 +391,7 @@ class Yasso(HasTraits):
     pc_ethanol = Array()
     pc_non_soluble = Array()
     pc_humus = Array()
+    
 
 #############################################################
 # UI view
@@ -441,25 +409,25 @@ class Yasso(HasTraits):
             HGroup(
                 Item('all_data', show_label=False, editor=CodeEditor(),
                      has_focus=True,
-                     #width=300, height=400,
+                     width=300, height=400,
                      ),
                 ),
             label='All data',
             ),
         VGroup(
             HGroup(
-                Item('parameter_set', width=-145,
-                     help=PARAMETER_SET_HELP),
+                Item('parameter_set', width=-145),
                 Item('leaching', width=-45,
-                     label='Litter bag adjustment parameter',
-                     help=LEACHING_HELP,),
-                show_border=True
+                     label='Leaching parameter',
+                     visible_when='initial_mode!="steady state"'),
+                show_border=True,
+                
             ),
             VGroup(
                 HGroup(
                     Item(name='initial_mode', style='custom',
                          label='Initial state:', emphasized=True,
-                         help=INITIAL_STATE_HELP, ),
+                         ),
                     ),
                 Item('initial_litter',
                      visible_when='initial_mode=="non zero"',
@@ -470,25 +438,28 @@ class Yasso(HasTraits):
             VGroup(
                 HGroup(
                     Item('litter_mode', style='custom',
-                         label='Soil carbon input:', emphasized=True,
-                         help=SOIL_CARBON_INPUT_HELP,),
+                         label='Soil carbon input:', emphasized=True
+                         )
                     ),
                 HGroup(
                     Item('constant_litter',
                          visible_when='litter_mode=="constant yearly"',
                          show_label=False, editor=litter_te,
                          full_size=False, springy=False,
-                         width=-790, height=-75),
+                         #width=-790, height=-75
+                         ),
                     Item('monthly_litter',
                          visible_when='litter_mode=="monthly"',
                          show_label=False, editor=timed_litter_te,
                          full_size=False, springy=False,
-                         width=-790, height=-75),
+                         #width=-790, height=-75
+                         ),
                     Item('yearly_litter',
                          visible_when='litter_mode=="yearly"',
                          show_label=False, editor=timed_litter_te,
                          full_size=False, springy=False,
-                         width=-790,height=-75),
+                         #width=-790,height=-75
+                         ),
                     ),
                 HGroup(
                     Item('area_change',
@@ -496,7 +467,8 @@ class Yasso(HasTraits):
                                       'litter_mode=="monthly"',
                          show_label=False, editor=change_te,
                          full_size=False, springy=False,
-                         width=-150,height=-75),
+                         width=-150,height=-75
+                         ),
                     spring,
                     ),
                 ),
@@ -504,15 +476,17 @@ class Yasso(HasTraits):
                 HGroup(
                     Item('climate_mode', style='custom',
                         label='Climate:', emphasized=True,
-                        help=CLIMATE_HELP,),
+                        ),
                     ),
                 HGroup(
                     Item('monthly_climate', show_label=False,
                          visible_when='climate_mode=="monthly"',
-                         editor=monthly_climate_te, width=200, height=75),
+                         editor=monthly_climate_te, width=200, height=75
+                         ),
                     Item('yearly_climate', show_label=False,
                         visible_when='climate_mode=="yearly"',
-                        editor=yearly_climate_te, width=200, height=75),
+                        editor=yearly_climate_te, width=200, height=75
+                        ),
                     VGroup(
                         Item('object.constant_climate.mean_temperature',
                               style='readonly',),
@@ -531,38 +505,39 @@ class Yasso(HasTraits):
             Group(
                 HGroup(
                     Item('sample_size', width=-45,
-                         help=SAMPLE_SIZE_HELP),
+                         ),
                     Item('simulation_length', width=-45,
                          label='Number of timesteps',
-                         help=SIMULATION_LENGTH_HELP,),
+                         ),
                     Item('timestep_length', width=-45,
-                         help=TIMESTEP_LENGTH_HELP),
+                         ),
                     Item('duration_unit', style='custom',
                          show_label=False,),
                     ),
                 HGroup(
                     Item('woody_size_limit', width=-45,
-                         help=WOODY_SIZE_LIMIT_HELP,),
+                         ),
                     Item('modelrun_event', show_label=False),
                     ),
                 show_border=True
             ),
             HGroup(
                 Item('result_type', style='custom', label='Show',
-                     emphasized=True, help=SHOW_HELP,),
+                     emphasized=True, ),
                 Item('save_result_event', show_label=False,),
                 Item('save_moment_event', show_label=False,),
                 ),
             HGroup(
                 Item('presentation_type', style='custom', label='As',
-                     emphasized=True, help=AS_HELP,),
+                     emphasized=True, ),
                 Item('chart_type', style='custom', label='Chart type',
                      visible_when='presentation_type=="chart"'),
                 ),
             HGroup(
                 Item('c_stock', visible_when='result_type=="C stock" and \
                       presentation_type=="array"', show_label=False,
-                      editor=c_stock_te, width=600),
+                      editor=c_stock_te, #width=600
+                      ),
                 Item('c_change', visible_when='result_type=="C change" and \
                       presentation_type=="array"', show_label=False,
                       editor=c_stock_te,),
@@ -570,34 +545,32 @@ class Yasso(HasTraits):
                       'and presentation_type=="array"', show_label=False,
                       editor=co2_yield_te,),
                 Item('stock_plots', editor=ComponentEditor(),
-                     show_label=False, width=600, height=600,
+                     show_label=False,
                      visible_when='result_type=="C stock" and \
                                   presentation_type=="chart"',),
                 Item('change_plots', editor=ComponentEditor(),
-                     show_label=False, width=600, height=600,
+                     show_label=False,
                      visible_when='result_type=="C change" and \
                                   presentation_type=="chart"',),
                 Item('co2_plot', editor=ComponentEditor(),
-                     show_label=False, width=600, height=600,
-                     #springy=False, full_size=False, resizable=False,
+                     show_label=False,
                      visible_when='result_type=="CO2 production" and \
                                   presentation_type=="chart"',),
                 ),
             label='Model run',
             ),
         VGroup(
-            Label(label='Yasso07 soil carbon model', emphasized=True),
-            Label(label=APP_INFO,),
+            Label(label='Yasso15 soil carbon model', emphasized=True),
+            Label(label="<placeholder>", id="about_text"),
             label='About',
             ),
-        title     = 'Yasso 07',
-        id        = 'simosol.yasso07',
+        title     = 'Yasso 15',
+        id        = 'simosol.yasso15',
         dock      = 'horizontal',
         resizable = True,
-        width     = 800,
-        height    = 600,
         scrollable= True,
         buttons=NoButtons,
+        icon=app_ir,
         menubar = MenuBar(
             Menu(CloseAction, name = 'File'),
             Menu(UndoAction, RedoAction, RevertAction, name = 'Edit'),
@@ -620,18 +593,41 @@ class Yasso(HasTraits):
         else:
             self.data_file = self._get_data_file_path(fn[0])
         try:
-            f = open(self.data_file)
+            f = codecs.open(self.data_file, 'r', 'utf8')
             self._load_all_data(f)
             f.close()
         except:
             self.all_data = DATA_STRING
             self.data_file = ''
+            
+        try:
+            cfg = ConfigParser.ConfigParser()
+
+            
+            fn = os.path.split(sys.executable)
+            if fn[1].lower().startswith('python'):
+                exedir = os.path.abspath(os.path.split(sys.argv[0])[0])
+            else:
+                exedir = fn[0]
+            
+            inipath = os.path.join(exedir, 'yasso.ini')
+            cfg.readfp(codecs.open(inipath, "r", "utf8"))
+            about_text = cfg.get("about", "text")
+            about_text = about_text.replace("\\n", "\n")
+            
+            self.trait_view('about_text').label = about_text
+            
+        except Exception as error:
+            print "Error reading yasso.ini. See the error log for details."
+            raise error
+            
+                
 
     def _get_data_file_path(self, exedir):
         join = os.path.join
         self.state_file = join(exedir, 'yasso.state')
         if os.path.exists(self.state_file):
-            f = open(self.state_file)
+            f = codecs.open(self.state_file, 'r', 'utf8')
             datafile = f.read()
             if len(datafile)>0 and datafile[-1]=='\n':
                 datafile = datafile[:-1]
@@ -644,9 +640,24 @@ class Yasso(HasTraits):
         return datafile
 
     def _write_state(self, filename):
-        f = open(self.state_file, 'w')
+        f = codecs.open(self.state_file, 'w', 'utf8')
         f.write(filename)
         f.close()
+        
+###############################################################################
+# Custom derived properties
+###############################################################################
+
+    @property
+    def leach_parameter(self):
+        """Leach parameter can only be 0 when the initialization mode is
+        by steady state. In other cases, the leaching parameter is the
+        trait "leaching". This is to be called
+        from the YassoModel instead of the traits themselves."""
+        if self.initial_mode=='steady state':
+            return 0
+        else:
+            return self.leaching
 
 ###############################################################################
 # Event handlers
@@ -666,14 +677,14 @@ class Yasso(HasTraits):
         snonwoody, max, min = self._create_plot(max, min, self.stock_non_woody,
                                         'Non-woody matter')
         sa, max, min = self._create_plot(max, min, self.stock_acid,
-                                         'Acid soluble')
+                                         'A')
         sw, max, min = self._create_plot(max, min, self.stock_water,
-                                         'Water soluble')
+                                         'W')
         se, max, min = self._create_plot(max, min, self.stock_ethanol,
-                                         'Ethanol soluble')
+                                         'E')
         sn, max, min = self._create_plot(max, min, self.stock_non_soluble,
-                                         'Non soluble')
-        sh, max, min = self._create_plot(max, min, self.stock_humus, 'Humus')
+                                         'N')
+        sh, max, min = self._create_plot(max, min, self.stock_humus, 'H')
         if common_scale:
             for pl in (stom, swoody, snonwoody, sa, sw, se, sn, sh):
                 pl.value_range.set_bounds(min, max)
@@ -692,14 +703,14 @@ class Yasso(HasTraits):
         cnonwoody, max, min = self._create_plot(max, min, self.change_non_woody,
                                              'Non-woody matter')
         ca, max, min = self._create_plot(max, min, self.change_acid,
-                                         'Acid soluble')
+                                         'A')
         cw, max, min = self._create_plot(max, min, self.change_water,
-                                         'Water soluble')
+                                         'W')
         ce, max, min = self._create_plot(max, min, self.change_ethanol,
-                                         'Ethanol soluble')
+                                         'E')
         cn, max, min = self._create_plot(max, min, self.change_non_soluble,
-                                         'Non soluble')
-        ch, max, min = self._create_plot(max, min, self.change_humus, 'Humus')
+                                         'N')
+        ch, max, min = self._create_plot(max, min, self.change_humus, 'H')
         if common_scale:
             for pl in (ctom, cwoody, cnonwoody, ca, cw, ce, cn, ch):
                 pl.value_range.set_bounds(min, max)
@@ -739,10 +750,6 @@ class Yasso(HasTraits):
         if self.sample_size>1:
             plot.plot(("x", "y2"), type="line", color="red")
             plot.plot(("x", "y3"), type="line", color="red")
-        #plot.padding_right = 45
-        #plot.padding_left = 25
-        #plot.padding_top = 25
-        #plot.padding_bottom = 25
         plot.title = title
         plot.title_font = 'Arial 10'
         return plot, max, min
@@ -760,13 +767,47 @@ class Yasso(HasTraits):
             exedir = fn[0]
         pdir = os.path.join(exedir, 'param')
         parfile = os.path.join(pdir, '%s.dat' % self.parameter_set)
-        self.yassorunner = ModelRunner(parfile)
+
+        if self.initial_mode=='zero' and self.litter_mode=='zero':
+            errmsg = ("Both soil carbon input and initial state may not be "
+                     "zero simultaneously.")
+            error(errmsg, title='Invalid model parameters', buttons=['OK'])
+            return
+        
+        if self.climate_mode=='yearly' and not self.yearly_climate:
+            errmsg = ("Climate mode may not be 'yearly' if there are no "
+                      "yearly climate entries in the data file.")
+            error(errmsg, title='Invalid model parameters', buttons=['OK'])
+            return
+
+        if self.leaching>0:
+            errmsg = ("Leaching parameter may not be larger than 0.")
+            error(errmsg, title='Invalid model parameters', buttons=['OK'])
+            return
+        
+        if self.climate_mode=='monthly' and not self.monthly_climate:
+            errmsg = ("Climate mode may not be 'monthly' if there are no "
+                      "monthly climate entries in the data file.")
+            error(errmsg, title='Invalid model parameters', buttons=['OK'])
+            return
+            
+            
+        yassorunner = ModelRunner(parfile)
+        
+        if not yassorunner.is_usable_parameter_file():
+            errmsg = ("The selected parameter file has wrong number of columns "
+                "and cannot be used.")
+            error(errmsg, title='Invalid model parameters', buttons=['OK'])
+            return
+        
+        self.yassorunner = yassorunner   
         if self.initial_mode=='steady state':
             steady_state = self.yassorunner.compute_steady_state(self)
             self._set_steady_state(steady_state)
         self._init_results()
         self.c_stock, self.c_change, self.co2_yield = \
                 self.yassorunner.run_model(self)
+                
         self._create_co2_plot()
         self._chart_type_changed()
 
@@ -791,7 +832,7 @@ class Yasso(HasTraits):
         if filename != '':
             try:
                 self._reset_data()
-                f=open(filename, 'w')
+                f=codecs.open(filename, 'w', 'utf8')
                 f.close()
                 self.data_file = filename
                 self._write_state(filename)
@@ -803,7 +844,7 @@ class Yasso(HasTraits):
         filename = open_file()
         if filename != '':
             try:
-                f=open(filename)
+                f=codecs.open(filename, 'r', 'utf8')
                 self.data_file = filename
                 self._write_state(filename)
                 self._load_all_data(f)
@@ -877,10 +918,10 @@ class Yasso(HasTraits):
                 self._set_yearly_climate(vallist)
 
     def _save_all_data(self):
-        f = open(self.data_file, 'w')
+        f = codecs.open(self.data_file, 'w', 'utf8')
         f.write(self.all_data)
         f.close()
-        f = open(self.data_file)
+        f = codecs.open(self.data_file, 'r', 'utf8')
         self._load_all_data(f)
         f.close()
 
@@ -1067,7 +1108,7 @@ class Yasso(HasTraits):
     def _save_moment_event_fired(self):
         filename = save_file()
         if filename != '':
-            f=open(filename, 'w')
+            f=codecs.open(filename, 'w', 'utf8')
             if self.result_type=='C stock':
                 comps = (('tom', self.stock_tom), ('woody', self.stock_woody),
                         ('non-woody', self.stock_non_woody),
@@ -1100,7 +1141,7 @@ class Yasso(HasTraits):
     def _save_result_event_fired(self):
         filename = save_file()
         if filename != '':
-            f=open(filename, 'w')
+            f=codecs.open(filename, 'w', 'utf8')
             if self.result_type=='C stock':
                 res = self.c_stock
                 header = '# sample, time step, total om, woody om, non-woody om,'\
@@ -1174,5 +1215,5 @@ yasso = Yasso()
 
 # Run the demo (if invoked from the command line):
 if __name__ == '__main__':
-    yasso.configure_traits()
+    yasso.configure_traits(view="view")
 

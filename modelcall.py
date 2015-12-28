@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import with_statement
+#from __future__ import with_statement
 
-import y07
+import y15
 import numpy
 import math
 import struct
+
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
@@ -36,9 +37,19 @@ class ModelRunner(object):
         Constructor.
         """
         self.param_set = []
+        self._param_file_shape = None
         with open(parfile) as f:
             for line in f:
-                self.param_set.append([float(v.strip()) for v in line.split()])
+                line_split = line.split()
+                self.param_set.append([float(v.strip()) for v in line_split])
+                if line.strip():
+                    self._param_file_shape = len(line_split)
+                    
+    def is_usable_parameter_file(self):
+        """Returns True, if the parameter file has a suitable number of
+        parameters that can be used."""
+        return self._param_file_shape == 35
+        
 
     def compute_steady_state(self, modeldata):
         """
@@ -64,6 +75,7 @@ class ModelRunner(object):
             self.ml_run = False
         self._steadystate2initial()
         return self.ss_result
+
 
     def run_model(self, modeldata):
         self.simulation = True
@@ -251,6 +263,7 @@ class ModelRunner(object):
         cl['rain'] = rain / len(months)
         cl['temp'] = temp / len(months)
         cl['amplitude'] = (maxtemp - mintemp) / 2.0
+        
         return cl
 
     def _construct_yearly_climate(self, cl, now, end):
@@ -321,7 +334,7 @@ class ModelRunner(object):
 
     def __create_input(self, timestep):
         """
-        Sums up the non-woody inital states and inputs into a single
+        Sums up the non-woody initial states and inputs into a single
         initial state and input. Matches the woody inital states and
         inputs by size class.
         """
@@ -332,6 +345,10 @@ class ModelRunner(object):
                 self._define_components(self.initial_def, self.initial)
         if self.md.litter_mode == 'constant yearly':
             self._define_components(self.md.constant_litter, self.litter)
+        elif self.md.litter_mode == 'zero':
+            # Not setting litter to anything. Will be rectified in
+            # _fill_input
+            pass
         else:
             timeind = self._map_timestep2timeind(timestep)
             if self.md.litter_mode=='monthly':
@@ -340,6 +357,8 @@ class ModelRunner(object):
                 infdata = self.md.yearly_litter
             self._define_components(infdata, self.litter, tsind=timeind)
         self._fill_input()
+        
+    
 
     def _define_components(self, fromme, tome, tsind=None):
         """
@@ -422,11 +441,16 @@ class ModelRunner(object):
         Also scales the total mass with the relative area change if defined.
         """
         mass = endstate.sum()
-        acid = endstate[0] / mass
-        water = endstate[1] / mass
-        ethanol = endstate[2] / mass
-        nonsoluble = endstate[3] / mass
-        humus = endstate[4] / mass
+        
+        # Avoid division by 0 or negative masses.
+        mass_sum = mass if mass > 0 else 1
+            
+        acid = endstate[0] / mass_sum
+        water = endstate[1] / mass_sum
+        ethanol = endstate[2] / mass_sum
+        nonsoluble = endstate[3] / mass_sum
+        humus = endstate[4] / mass_sum
+
         # area change scaling
         if self.md.litter_mode in ('monthly', 'yearly'):
             for listind in self.area_timemap[timestep]:
@@ -580,6 +604,8 @@ class ModelRunner(object):
             elif self.md.litter_mode=='yearly':
                 incl = [0]
                 infall = self.md.yearly_litter
+            elif self.md.litter_mode=='zero':
+                infall = []
             for ind in range(len(infall)):
                 if infall[ind].timestep in incl:
                     self.timemap[timestep].append(ind)
@@ -602,6 +628,9 @@ class ModelRunner(object):
             elif self.md.litter_mode=='yearly':
                 inputdur = relativedelta(years=1)
                 infall = self.md.yearly_litter
+            elif self.md.litter_mode=='zero':
+                inputdur = relativedelta(years=1)
+                infall = self.md.zero_litter
             # the first mont/year will have index number 1, hence deduce 1 m/y
             start = STARTDATE - inputdur
             for ind in range(len(infall)):
@@ -631,7 +660,7 @@ class ModelRunner(object):
         else:
             return False
 
-    def _predict(self, sc, initial, litter, climate):
+    def _predict(self, sc, initial, litter, climate, steady_state=False):
         """
         Processes the input data before calling the model and then
         runs the model
@@ -674,11 +703,24 @@ class ModelRunner(object):
             inf = na(self.infall[sc], dtype=f32) / dur
         cl = na([climate['temp'], climate['rain'], climate['amplitude']],
                 dtype=f32)
-        leach = self.md.leaching
-        endstate = y07.yasso.mod5c(par, dur, cl, init, inf, sc, leach)
+                
+        # If we're using steady state as original state,
+        # the leach parameters are not allowed to be set.
+        leach = self.md.leach_parameter
+        if self._param_file_shape == 35:
+            # The Yasso15 -model call.
+            endstate = y15.yasso.mod5c(par, dur, cl, init, inf, sc, leach, 
+                    steady_state)
+        else:
+            raise Exception("Invalid number of parameters in parameter file.")
+            # This would be how the old model used this.
+            #if cl[1] == 0.0:
+            #    cl[1] = 0.1 # The Fortran routine fails if precipitation is 0.
+            #endstate = y07.yasso.mod5c(par, dur, cl, init, inf, sc, leach)
+        
         self.ts_initial += sum(initial)
         self.ts_infall += sum(self.infall[sc])
-        return init, endstate
+        return init, endstate.copy()
 
     def _predict_timestep(self, sample, timestep):
         """
@@ -715,7 +757,8 @@ class ModelRunner(object):
         for sizeclass in self.initial:
             initial, endstate = self._predict(sizeclass,
                                               self.initial[sizeclass],
-                                              self.litter[sizeclass], climate)
+                                              self.litter[sizeclass], climate,
+                                              steady_state=True)
             self._add_steady_state_result(sizeclass, endstate)
             self.draw = False
 
