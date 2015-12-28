@@ -1,0 +1,34 @@
+Yasso15 OS X-installation
+=========================
+
+1. Download and install Enthought Canopy Express from address https://store.enthought.com/
+   You will need also GFortran and XCode installed; see https://gcc.gnu.org/wiki/GFortranBinaries#MacOS
+   for how to install GFortran.
+   After XCode is installed, you need to accept the license by running in the terminal 
+
+   sudo xcodebuild -license
+
+
+2. Download the current source code from https://github.com/JariLiski/Yasso15 (Notice "Download ZIP" on the right)
+
+
+3. Unpack the ZIP file.
+
+
+4. Launch Enthought Canopy.
+
+
+5. From the menu bar, choose "Tools" and "Canopy Terminal".
+
+
+6. Move to the folder in which you unpacked the ZIP file.
+
+
+7. Compile the Fortran model library:
+
+   ./compile_mac.sh
+   
+
+7. To run the program:
+
+   ./run_yasso.sh

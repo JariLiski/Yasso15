@@ -1,0 +1,44 @@
+INSTALLING YASSO15:
+
+On Windows, you can download a premade executable.
+
+To install on Mac OS X, see mac_install.txt.
+
+If you want to edit the program on Windows, these instructions are for you.
+
+1) Install either Anaconda or Enthought Canopy (Express).
+
+In case you install Anaconda, you will need to install packages like traits,
+traitsui, enable, pyface and chaco.
+If you want to use wxPython as the UI, do not install a version newer than 
+wxPython 2.8.12, as newer versions do not seem to work with traitsui.
+
+2) Install MinGW (Minimalist GNU for Windows) to get the C and Fortran compilers.
+See www.mingw.org
+
+3) Compile the Fortran module y15_subroutine.f95.
+Add the MinGW directory to your path, then run the f2py script as follows 
+in the program folder:
+
+f2py-script.py -c --fcompiler=gnu95 --compiler=mingw32 -m y15 y15_subroutine.f90 only: mod5c
+
+If you are using Anaconda, before compiling you may need to add the file 
+"distutils.cfg" in your Anaconda/Lib/distutils directory with the content:
+
+    [build]
+    compiler=mingw32
+
+4) There should now be y15.pyd in the folder; you can now run the application:
+
+python yasso.py
+
+
+CREATING AN EXE FOR WINDOWS WITH ANACONDA AND wxPython:
+
+The folder pyinstaller/ contains yasso15_conda.spec file for PyInstaller. 
+Remember to include MinGW in the path as you run pyinstaller with it. The 
+folder dist/bin/ will contain the result. Remember to copy "yasso.ini",
+"yasso.ico", "demo_data.txt" and the folder "param" into that directory.
+
+NOTE: This .spec file does not work with PyInstaller 3. You will need an
+earlier version of PyInstaller from the repository.
