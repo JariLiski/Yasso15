@@ -567,6 +567,8 @@ class Yasso(HasTraits):
         title     = 'Yasso 15',
         id        = 'simosol.yasso15',
         dock      = 'horizontal',
+        width     = 800,
+        height    = 600,
         resizable = True,
         scrollable= True,
         buttons=NoButtons,
