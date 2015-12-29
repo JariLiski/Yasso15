@@ -9,17 +9,10 @@ import cgi
 #ETS_INSTALL = 'EPD'
 ETS_INSTALL = 'pypi'
 
-#if hasattr(sys, 'frozen'):
-#    __file__ = ''.join((os.path.dirname(sys.executable), 'unpackMetadata.py'))
-
 this = carchive.CArchive(sys.executable)
-print "ENVIRON:"
-print "\n".join(sorted(os.environ.keys()))
 if hasattr(sys, "_MEIPASS"):
-    print "Sys has MEIPASS"
     archives = sys._MEIPASS
 elif hasattr(sys, "_MEIPASS2"):
-    print "Sys has MEIPASS2"
     archives = sys._MEIPASS2
 else:
     archives = os.environ['_MEIPASS2']
@@ -29,10 +22,6 @@ if ETS_INSTALL == 'EPD':
     pkgs = ['wx', 'enthought']
 else:
     pkgs = ['enable', 'traits', 'kiva', 'traitsui', 'chaco', 'wx', 'pyface']
-    #pkgs = ['enable', 'traits', 'traitsui', 'chaco', 'pyface']
-#targetdir = os.path.join(archives, "pymodules")
-#os.mkdir(targetdir)
-#sys.path.insert(0, targetdir)
 
 for pkg in pkgs:
     mp = this.openEmbedded('%s.pkg' % pkg)
@@ -51,14 +40,8 @@ for pkg in pkgs:
             print mex
     mp = None
     
-    print "The contents of the target subdir now:"
-    print sorted(os.listdir(targetdir))
-    
-    #print "Appended to sys.path:", targetdir
     if pkg == 'wx':
-        print "Appending to sys.path"
         sys.path.insert(0, targetdir)
-    #os.path.join(targetdir, pkg))
     if ETS_INSTALL == 'EPD' and pkg == 'enthought':
         imagepath = os.path.join(targetdir, 'traits', 'ui', 'image', 'library')
         os.environ['TRAITS_IMAGES'] = imagepath
@@ -72,16 +55,11 @@ for pkg in pkgs:
     os.putenv('ETS_TOOLKIT', 'wx')
     os.environ['ETS_TOOLKIT'] = 'wx'
 sys.path.insert(0, archives)
-print "FINAL SYS PATH:", sys.path
     
 import code, keyword
+import kiwisolver
 
-print "Trying to import wx"
 import wx
-print "WX file:", wx.__file__
-print "Trying to import wx.html"
 import wx.html
-print "Trying to import wx.lib.scrolledpanel"
 import wx.lib.scrolledpanel
-print "Trying to import everything from wx"
 from wx import *
