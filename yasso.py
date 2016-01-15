@@ -292,9 +292,8 @@ class Yasso(HasTraits):
     """
     # Parameters
     p_sets = _get_parameter_files()
-    
-    
     parameter_set = Enum(p_sets)
+    
     leaching = Float()
     # Initial condition
     initial_mode = Enum(['non zero', 'zero', 'steady state'])
@@ -617,6 +616,10 @@ class Yasso(HasTraits):
             about_text = cfg.get("about", "text")
             about_text = about_text.replace("\\n", "\n")
             
+            default_param = cfg.get("data", "default_param")
+            if default_param in self.p_sets:
+                self.parameter_set = default_param
+            
             self.trait_view('about_text').label = about_text
             
         except Exception as error:
@@ -769,7 +772,7 @@ class Yasso(HasTraits):
             exedir = fn[0]
         pdir = os.path.join(exedir, 'param')
         parfile = os.path.join(pdir, '%s.dat' % self.parameter_set)
-
+        
         if self.initial_mode=='zero' and self.litter_mode=='zero':
             errmsg = ("Both soil carbon input and initial state may not be "
                      "zero simultaneously.")
