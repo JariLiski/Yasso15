@@ -1,9 +1,9 @@
 #
 # THIS FILE CONTAINS EXAMPLE DATA FOR YASSO15 
-#
+# Data: Tuomi et al. 2009. Ecological Modelling. 
 # THE CHANGES YOU MAKE HERE HAVE ONLY EFFECT AFTER YOU SAVE THE CHANGES
 # 
-# commented out rows begin with the # chacter
+# commented out rows begin with the # character
 # numbers must be whitespace separated (space or tab)
 # decimal separator is ., no thousands separator
 #
@@ -82,14 +82,14 @@
 #-2.4 590 9.7 
 #
 # TEMPERATE
-#13.9 1720 5.1 
-#
+#13.9 1720 5.1
+# 
 # TROPICAL 
 #26.0 2860 0.6 
 
 [Monthly climate]
 # Data: month, mean temperature, precipitation
-# Example: Boreal climate
+#
 [Yearly climate]
 # Data: year, mean temperature, precipitation, amplitude of monthly mean 
 # temperature variation
