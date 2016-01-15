@@ -164,7 +164,7 @@ if ETS_INSTALL == 'EPD':
               debug=False,
               strip=False,
               upx=False,
-              icon='yasso.ico',
+              icon='..\yasso.ico',
               console=False )
 else:
     exe = EXE(wx,
@@ -183,7 +183,7 @@ else:
               debug=False,
               strip=False,
               upx=False,
-              icon='yasso.ico',
+              icon='..\yasso.ico',
               console=False
               )
     coll = COLLECT( exe,
