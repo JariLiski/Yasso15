@@ -38,7 +38,8 @@ CREATING AN EXE FOR WINDOWS WITH ANACONDA AND wxPython:
 The folder pyinstaller/ contains yasso15_conda.spec file for PyInstaller. 
 Remember to include MinGW in the path as you run pyinstaller with it. The 
 folder dist/bin/ will contain the result. Remember to copy "yasso.ini",
-"yasso.ico", "demo_data.txt" and the folder "param" into that directory.
+"yasso.ico", "demo_data.txt", "LGPL.txt", "LICENSE.txt" and "BINLICENSES.txt"
+and the folder "param" into that directory.
 
 NOTE: This .spec file does not work with PyInstaller 3. You will need an
 earlier version of PyInstaller from the repository.
