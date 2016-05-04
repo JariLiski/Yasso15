@@ -23,7 +23,7 @@ from traitsui.api import CodeEditor, Group, HGroup, VGroup, Item,\
 from traitsui.menu import \
     UndoAction, RedoAction, RevertAction, CloseAction, \
     Menu, MenuBar, NoButtons
-from traitsui.file_dialog import open_file, save_file
+from pyface.api import FileDialog, OK as Pyface_OK
 from traitsui.message import error
 from traits.trait_errors import TraitError
 from traitsui.tabular_adapter import TabularAdapter
@@ -33,6 +33,23 @@ from enable.component_editor import ComponentEditor
 from modelcall import ModelRunner
 import sys
 
+def open_file():
+    """Replaces the old traitsui.file_dialog.open_file calls with
+    the more robust PyFace."""
+    wildcard='*.txt'
+    dialog = FileDialog(title='Select the file to open',
+        action='open', wildcard=wildcard)
+    if dialog.open() == Pyface_OK:
+        return dialog.path
+    return ''
+    
+def save_file():
+    wildcard='*.txt'
+    dialog = FileDialog(title='Select the file to save as...',
+        action='save as', wildcard=wildcard)
+    if dialog.open() == Pyface_OK:
+        return dialog.path
+    return ''
 
 APP_INFO="""
 For detailed information, including a user's manual, see:
